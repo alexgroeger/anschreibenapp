@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import './globals.css'
+import { Navigation } from '@/components/Navigation'
 
 export const metadata: Metadata = {
   title: 'AI Cover Letter Architect',
@@ -13,7 +14,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="de">
-      <body>{children}</body>
+      <body>
+        <Navigation />
+        {children}
+      </body>
     </html>
   )
 }

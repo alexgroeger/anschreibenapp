@@ -1,10 +1,10 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useCompletion } from "@ai-sdk/react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
+import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import {
@@ -14,63 +14,175 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import Link from "next/link"
 
 export default function Home() {
-  const [resume, setResume] = useState("")
+  const router = useRouter()
   const [jobInput, setJobInput] = useState("")
   const [tone, setTone] = useState("professionell")
   const [focus, setFocus] = useState("skills")
-  const [analysis, setAnalysis] = useState("")
-  const [isGenerating, setIsGenerating] = useState(false)
+  const [extraction, setExtraction] = useState<any>(null)
+  const [matchResult, setMatchResult] = useState("")
+  const [coverLetter, setCoverLetter] = useState("")
+  const [loading, setLoading] = useState(false)
+  const [step, setStep] = useState<'input' | 'extracted' | 'matched' | 'generated'>('input')
+  const [company, setCompany] = useState("")
+  const [position, setPosition] = useState("")
+  const [saving, setSaving] = useState(false)
 
-  const { completion, complete, isLoading } = useCompletion({
-    api: '/api/generate',
-    onFinish: () => {
-      setIsGenerating(false)
-    },
-    onError: (error) => {
-      console.error('Fehler bei der Generierung:', error)
-      setIsGenerating(false)
-    }
-  })
-
-  const handleAnalyze = () => {
-    // TODO: Implement API call for job analysis
-    setAnalysis("Job-Analyse wird hier angezeigt...")
-  }
-
-  const handleGenerate = async () => {
-    if (!resume || !jobInput) {
+  const handleExtract = async () => {
+    if (!jobInput.trim()) {
+      alert('Bitte geben Sie eine Jobbeschreibung ein.')
       return
     }
 
-    setIsGenerating(true)
-    
+    setLoading(true)
     try {
-      // useCompletion erwartet den Body als zweiten Parameter
-      await complete('', {
-        body: {
-          cvText: resume,
-          jobDescription: jobInput,
-          tone: tone,
-          focus: focus
-        }
+      const response = await fetch('/api/extract', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ jobDescription: jobInput }),
       })
+
+      if (response.ok) {
+        const data = await response.json()
+        setExtraction(data.extraction)
+        setStep('extracted')
+        
+        // Try to extract company and position from job description
+        if (data.extraction) {
+          // Simple extraction - could be improved
+          const lines = jobInput.split('\n')
+          for (const line of lines) {
+            if (line.toLowerCase().includes('unternehmen') || line.toLowerCase().includes('firma')) {
+              setCompany(line.replace(/.*unternehmen[:\s]+/i, '').replace(/.*firma[:\s]+/i, '').trim())
+            }
+            if (line.toLowerCase().includes('position') || line.toLowerCase().includes('stelle')) {
+              setPosition(line.replace(/.*position[:\s]+/i, '').replace(/.*stelle[:\s]+/i, '').trim())
+            }
+          }
+        }
+      } else {
+        const data = await response.json()
+        alert(data.error || 'Fehler bei der Extraktion')
+      }
     } catch (error) {
-      console.error('Fehler:', error)
-      setIsGenerating(false)
+      console.error('Error extracting:', error)
+      alert('Fehler bei der Extraktion')
+    } finally {
+      setLoading(false)
     }
   }
 
-  // Bearbeitbarer State für das Anschreiben nach der Generierung
-  const [editableCoverLetter, setEditableCoverLetter] = useState("")
-  
-  // Synchronisiere completion mit editableCoverLetter
-  useEffect(() => {
-    if (completion) {
-      setEditableCoverLetter(completion)
+  const handleMatch = async () => {
+    if (!extraction) {
+      alert('Bitte führen Sie zuerst eine Extraktion durch.')
+      return
     }
-  }, [completion])
+
+    setLoading(true)
+    try {
+      const response = await fetch('/api/match', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ jobDescription: jobInput }),
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setMatchResult(data.matchResult)
+        setStep('matched')
+      } else {
+        const data = await response.json()
+        alert(data.error || 'Fehler beim Matching')
+      }
+    } catch (error) {
+      console.error('Error matching:', error)
+      alert('Fehler beim Matching')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleGenerate = async () => {
+    if (!matchResult) {
+      alert('Bitte führen Sie zuerst ein Matching durch.')
+      return
+    }
+
+    setLoading(true)
+    try {
+      const response = await fetch('/api/generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          matchResult,
+          jobDescription: jobInput,
+          tone,
+          focus,
+        }),
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setCoverLetter(data.coverLetter)
+        setStep('generated')
+      } else {
+        const data = await response.json()
+        alert(data.error || 'Fehler bei der Generierung')
+      }
+    } catch (error) {
+      console.error('Error generating:', error)
+      alert('Fehler bei der Generierung')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleSaveApplication = async () => {
+    if (!company.trim() || !position.trim() || !coverLetter.trim()) {
+      alert('Bitte füllen Sie alle Felder aus.')
+      return
+    }
+
+    setSaving(true)
+    try {
+      const response = await fetch('/api/applications', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          company: company.trim(),
+          position: position.trim(),
+          job_description: jobInput,
+          extraction_data: extraction,
+          cover_letter: coverLetter,
+          status: 'rueckmeldung_ausstehend',
+          contacts: extraction?.contacts || [],
+        }),
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        router.push(`/dashboard/${data.application.id}`)
+      } else {
+        const data = await response.json()
+        alert(data.error || 'Fehler beim Speichern')
+      }
+    } catch (error) {
+      console.error('Error saving application:', error)
+      alert('Fehler beim Speichern')
+    } finally {
+      setSaving(false)
+    }
+  }
 
   return (
     <main className="min-h-screen bg-background p-8">
@@ -78,6 +190,16 @@ export default function Home() {
         <h1 className="text-4xl font-bold mb-8 text-center">
           AI Cover Letter Architect
         </h1>
+
+        <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+          <p className="text-sm text-blue-800">
+            <strong>Hinweis:</strong> Bitte laden Sie zuerst Ihren Lebenslauf auf der{" "}
+            <Link href="/resume" className="underline font-semibold">
+              Lebenslauf-Seite
+            </Link>{" "}
+            hoch. Dieser wird automatisch für Matching und Generierung verwendet.
+          </p>
+        </div>
         
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Links: Input-Bereich */}
@@ -86,21 +208,10 @@ export default function Home() {
               <CardHeader>
                 <CardTitle>Eingaben</CardTitle>
                 <CardDescription>
-                  Geben Sie Ihren Lebenslauf und die Jobbeschreibung ein
+                  Geben Sie die Jobbeschreibung ein
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="resume">Lebenslauf</Label>
-                  <Textarea
-                    id="resume"
-                    placeholder="Fügen Sie hier Ihren Lebenslauf ein..."
-                    value={resume}
-                    onChange={(e) => setResume(e.target.value)}
-                    className="min-h-[200px]"
-                  />
-                </div>
-                
                 <div className="space-y-2">
                   <Label htmlFor="job">Job-URL oder Text</Label>
                   <Textarea
@@ -108,44 +219,76 @@ export default function Home() {
                     placeholder="Fügen Sie hier die Job-URL oder den Job-Text ein..."
                     value={jobInput}
                     onChange={(e) => setJobInput(e.target.value)}
-                    className="min-h-[150px]"
+                    className="min-h-[200px]"
                   />
                 </div>
 
                 <Button 
-                  onClick={handleAnalyze} 
+                  onClick={handleExtract} 
                   className="w-full"
-                  disabled={!resume || !jobInput}
+                  disabled={!jobInput.trim() || loading}
                 >
-                  Job analysieren
+                  {loading ? 'Analysiere...' : 'Job analysieren'}
                 </Button>
               </CardContent>
             </Card>
+
+            {extraction && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Extraktionsdaten</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {extraction.keyRequirements && (
+                    <div>
+                      <Label className="font-semibold">Key Requirements</Label>
+                      <div className="text-sm whitespace-pre-wrap bg-muted p-3 rounded mt-1">
+                        {extraction.keyRequirements}
+                      </div>
+                    </div>
+                  )}
+                  {extraction.contacts && extraction.contacts.length > 0 && (
+                    <div>
+                      <Label className="font-semibold">Kontaktpersonen</Label>
+                      <div className="space-y-2 mt-1">
+                        {extraction.contacts.map((contact: any, idx: number) => (
+                          <div key={idx} className="text-sm bg-muted p-2 rounded">
+                            <div><strong>{contact.name}</strong></div>
+                            {contact.position && <div>{contact.position}</div>}
+                            {contact.email && <div>📧 {contact.email}</div>}
+                            {contact.phone && <div>📞 {contact.phone}</div>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  <Button 
+                    onClick={handleMatch} 
+                    className="w-full"
+                    disabled={loading}
+                  >
+                    {loading ? 'Matche...' : 'Matching durchführen'}
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+
+            {matchResult && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Matching-Ergebnis</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-sm whitespace-pre-wrap bg-muted p-3 rounded max-h-64 overflow-y-auto">
+                    {matchResult}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </div>
 
           {/* Rechts: Output-Bereich */}
           <div className="space-y-6">
-            {/* Job-Analyse Card */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Job-Analyse</CardTitle>
-                <CardDescription>
-                  Analyse der Jobbeschreibung
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {analysis ? (
-                  <div className="text-sm whitespace-pre-wrap">
-                    {analysis}
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    Klicken Sie auf &quot;Job analysieren&quot; um die Analyse zu starten.
-                  </p>
-                )}
-              </CardContent>
-            </Card>
-
             {/* Anschreiben-Editor Card */}
             <Card>
               <CardHeader>
@@ -188,34 +331,58 @@ export default function Home() {
                 <Button 
                   onClick={handleGenerate} 
                   className="w-full"
-                  disabled={!resume || !jobInput || isGenerating || isLoading}
+                  disabled={!matchResult || loading}
                 >
-                  {isGenerating || isLoading ? "Generiere..." : "Anschreiben generieren"}
+                  {loading ? "Generiere..." : "Anschreiben generieren"}
                 </Button>
 
-                {(completion || isGenerating || isLoading || editableCoverLetter) && (
+                {coverLetter && (
                   <div className="space-y-2">
                     <Label>Generiertes Anschreiben</Label>
                     <Textarea
-                      value={isGenerating || isLoading ? completion : editableCoverLetter}
-                      onChange={(e) => {
-                        // Erlaube manuelle Bearbeitung nach der Generierung
-                        if (!isGenerating && !isLoading) {
-                          setEditableCoverLetter(e.target.value)
-                        }
-                      }}
+                      value={coverLetter}
+                      onChange={(e) => setCoverLetter(e.target.value)}
                       className="min-h-[300px] font-mono text-sm"
-                      readOnly={isGenerating || isLoading}
                     />
-                    {(isGenerating || isLoading) && (
-                      <p className="text-xs text-muted-foreground">
-                        Generiere Anschreiben...
-                      </p>
-                    )}
                   </div>
                 )}
               </CardContent>
             </Card>
+
+            {coverLetter && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Bewerbung speichern</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="company">Unternehmen *</Label>
+                    <Input
+                      id="company"
+                      placeholder="Unternehmen"
+                      value={company}
+                      onChange={(e) => setCompany(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="position">Position *</Label>
+                    <Input
+                      id="position"
+                      placeholder="Position"
+                      value={position}
+                      onChange={(e) => setPosition(e.target.value)}
+                    />
+                  </div>
+                  <Button 
+                    onClick={handleSaveApplication} 
+                    className="w-full"
+                    disabled={saving || !company.trim() || !position.trim()}
+                  >
+                    {saving ? 'Speichere...' : 'Bewerbung im Dashboard speichern'}
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
           </div>
         </div>
       </div>
