@@ -85,7 +85,7 @@ export function initDatabase(): Database.Database {
   
   // Initialize default settings
   const defaultSettings = [
-    { key: 'ai_model', value: 'gemini-1.5-pro', category: 'ai', description: 'KI-Modell für alle Operationen' },
+    { key: 'ai_model', value: 'gemini-pro', category: 'ai', description: 'KI-Modell für alle Operationen' },
     { key: 'temperature_extract', value: '0.3', category: 'ai', description: 'Temperature für Extraktion' },
     { key: 'temperature_match', value: '0.5', category: 'ai', description: 'Temperature für Matching' },
     { key: 'temperature_generate', value: '0.7', category: 'ai', description: 'Temperature für Generierung' },
