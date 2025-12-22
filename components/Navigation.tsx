@@ -10,6 +10,7 @@ const navItems = [
   { href: "/resume", label: "Lebenslauf" },
   { href: "/cover-letters", label: "Alte Anschreiben" },
   { href: "/dashboard", label: "Dashboard" },
+  { href: "/admin", label: "Admin" },
 ]
 
 export function Navigation() {
