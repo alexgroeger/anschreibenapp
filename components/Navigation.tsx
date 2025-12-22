@@ -15,7 +15,7 @@ import {
   Home,
   ChevronDown,
 } from "lucide-react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 
 // Hauptbereich: Anschreiben erstellen
 const mainNavItems = [
@@ -76,13 +76,20 @@ const adminNavItems = [
 export function Navigation() {
   const pathname = usePathname()
   const [adminMenuOpen, setAdminMenuOpen] = useState(false)
+  const [mounted, setMounted] = useState(false)
+  
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+  
   const isAdminPage = pathname?.startsWith("/admin")
 
   const isActive = (href: string) => {
+    if (!mounted || !pathname) return false
     if (href === "/") {
       return pathname === "/"
     }
-    return pathname?.startsWith(href)
+    return pathname.startsWith(href)
   }
 
   return (

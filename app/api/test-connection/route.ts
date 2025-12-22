@@ -23,7 +23,6 @@ export async function GET() {
           model: google(modelName as any),
           prompt: 'Antworte nur mit "OK"',
           temperature: 0.1,
-          maxTokens: 10,
         });
         text = result.text;
         workingModel = modelName;
