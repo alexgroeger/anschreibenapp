@@ -1,47 +1,21 @@
 import { NextResponse } from 'next/server';
-import { generateText } from 'ai';
-import { google } from '@ai-sdk/google';
+import { generateTextWithFallback } from '@/lib/ai/model-helper';
 
 export async function GET() {
   try {
     // Teste die Verbindung mit einem einfachen Prompt
-    // Versuche verschiedene Modellnamen basierend auf API-Version
-    const modelsToTry = [
-      'models/gemini-pro',
-      'gemini-1.5-flash-latest', 
-      'gemini-1.5-pro-latest',
-      'gemini-pro'
-    ];
-    
-    let text = '';
-    let workingModel = '';
-    let lastError: any = null;
-    
-    for (const modelName of modelsToTry) {
-      try {
-        const result = await generateText({
-          model: google(modelName as any),
-          prompt: 'Antworte nur mit "OK"',
-          temperature: 0.1,
-        });
-        text = result.text;
-        workingModel = modelName;
-        break;
-      } catch (error: any) {
-        lastError = error;
-        continue;
-      }
-    }
-    
-    if (!text) {
-      throw lastError || new Error('Kein Modell funktionierte');
-    }
+    const { text, model } = await generateTextWithFallback(
+      'Antworte nur mit "OK"',
+      undefined,
+      0.1
+    );
 
     return NextResponse.json(
       { 
         success: true, 
         message: 'API-Verbindung erfolgreich!',
         response: text,
+        model: model,
         timestamp: new Date().toISOString()
       },
       { status: 200 }
@@ -50,9 +24,9 @@ export async function GET() {
     console.error('API-Verbindungsfehler:', error);
     
     let errorMessage = 'Unbekannter Fehler';
-    if (error.message?.includes('API key')) {
-      errorMessage = 'API-Key fehlt oder ist ungültig. Bitte überprüfe deine .env.local Datei.';
-    } else if (error.message?.includes('quota')) {
+    if (error.message?.includes('API key') || error.type === 'API_KEY_ERROR') {
+      errorMessage = 'API-Key fehlt oder ist ungültig. Bitte überprüfe deine Admin-Einstellungen oder .env.local Datei.';
+    } else if (error.message?.includes('quota') || error.type === 'QUOTA_ERROR') {
       errorMessage = 'API-Quota überschritten. Bitte überprüfe dein Google Cloud-Konto.';
     } else {
       errorMessage = error.message || 'Fehler bei der API-Verbindung';
@@ -63,6 +37,7 @@ export async function GET() {
         success: false, 
         error: errorMessage,
         details: error.message,
+        type: error.type,
         timestamp: new Date().toISOString()
       },
       { status: 500 }

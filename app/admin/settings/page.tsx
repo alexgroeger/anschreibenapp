@@ -13,6 +13,8 @@ export default function SettingsPage() {
   const [editedSettings, setEditedSettings] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [testingApiKey, setTestingApiKey] = useState(false)
+  const [apiKeyTestResult, setApiKeyTestResult] = useState<{ success: boolean; message: string } | null>(null)
 
   useEffect(() => {
     fetchSettings()
@@ -26,7 +28,12 @@ export default function SettingsPage() {
       // Initialize edited settings with current values
       const initial: Record<string, string> = {}
       Object.keys(data.settings).forEach((key) => {
-        initial[key] = data.settings[key].value
+        // Für API-Key: Wenn leer, zeige leeren String (nicht den Wert aus .env.local)
+        if (key === 'google_api_key' && !data.settings[key].value) {
+          initial[key] = ''
+        } else {
+          initial[key] = data.settings[key].value
+        }
       })
       setEditedSettings(initial)
     } catch (error) {
@@ -69,9 +76,56 @@ export default function SettingsPage() {
   const handleReset = () => {
     const initial: Record<string, string> = {}
     Object.keys(settings).forEach((key) => {
-      initial[key] = settings[key].value
+      if (key === 'google_api_key' && !settings[key].value) {
+        initial[key] = ''
+      } else {
+        initial[key] = settings[key].value
+      }
     })
     setEditedSettings(initial)
+    setApiKeyTestResult(null)
+  }
+
+  const handleTestApiKey = async () => {
+    const apiKey = editedSettings['google_api_key'] || ''
+    if (!apiKey.trim()) {
+      setApiKeyTestResult({
+        success: false,
+        message: 'Bitte geben Sie einen API-Key ein, um ihn zu testen.'
+      })
+      return
+    }
+
+    setTestingApiKey(true)
+    setApiKeyTestResult(null)
+    
+    try {
+      // Temporär den API-Key setzen und testen
+      const response = await fetch('/api/test-connection', {
+        method: 'GET',
+      })
+
+      const data = await response.json()
+      
+      if (data.success) {
+        setApiKeyTestResult({
+          success: true,
+          message: `✅ API-Key funktioniert! Modell: ${data.model || 'Unbekannt'}`
+        })
+      } else {
+        setApiKeyTestResult({
+          success: false,
+          message: `❌ Fehler: ${data.error || data.details || 'Unbekannter Fehler'}`
+        })
+      }
+    } catch (error: any) {
+      setApiKeyTestResult({
+        success: false,
+        message: `❌ Fehler beim Testen: ${error.message || 'Unbekannter Fehler'}`
+      })
+    } finally {
+      setTestingApiKey(false)
+    }
   }
 
   const getSettingsByCategory = (category: string) => {
@@ -101,11 +155,90 @@ export default function SettingsPage() {
         </p>
       </div>
 
-      <Tabs defaultValue="ai" className="w-full">
+      <Tabs defaultValue="api" className="w-full">
         <TabsList>
+          <TabsTrigger value="api">API-Konfiguration</TabsTrigger>
           <TabsTrigger value="ai">KI-Modell</TabsTrigger>
           <TabsTrigger value="generation">Generierung</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="api" className="mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>API-Key Konfiguration</CardTitle>
+              <CardDescription>
+                Google Gemini API-Key verwalten. Wenn leer gelassen, wird der Key aus .env.local verwendet.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {getSettingsByCategory("api").map(([key, setting]) => {
+                const currentValue = editedSettings[key] || "";
+                const hasValue = currentValue.length > 0;
+                
+                return (
+                  <div key={key} className="space-y-2">
+                    <Label htmlFor={key}>{setting.description || key}</Label>
+                    <div className="space-y-2">
+                      <Input
+                        id={key}
+                        type="password"
+                        placeholder={key === 'google_api_key' ? 'Leer lassen für .env.local' : ''}
+                        value={currentValue}
+                        onChange={(e) => handleSettingChange(key, e.target.value)}
+                        className="font-mono text-sm"
+                      />
+                      {key === 'google_api_key' && (
+                        <>
+                          <div className="flex gap-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={handleTestApiKey}
+                              disabled={testingApiKey || !hasValue}
+                              className="mt-2"
+                            >
+                              {testingApiKey ? 'Teste...' : 'API-Key testen'}
+                            </Button>
+                          </div>
+                          {apiKeyTestResult && (
+                            <div className={`mt-2 p-2 rounded text-xs ${
+                              apiKeyTestResult.success 
+                                ? 'bg-green-50 text-green-800 border border-green-200' 
+                                : 'bg-red-50 text-red-800 border border-red-200'
+                            }`}>
+                              {apiKeyTestResult.message}
+                            </div>
+                          )}
+                          {hasValue && !apiKeyTestResult && (
+                            <p className="text-xs text-muted-foreground mt-2">
+                              ✓ API-Key ist gesetzt ({currentValue.length} Zeichen). Leer lassen, um .env.local zu verwenden.
+                            </p>
+                          )}
+                          {!hasValue && (
+                            <p className="text-xs text-muted-foreground mt-2">
+                              Kein API-Key in Datenbank. Es wird der Key aus .env.local verwendet (falls vorhanden).
+                            </p>
+                          )}
+                          <p className="text-xs text-muted-foreground mt-2">
+                            <a 
+                              href="https://aistudio.google.com/app/apikey" 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="text-primary hover:underline"
+                            >
+                              API-Key erstellen →
+                            </a>
+                          </p>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         <TabsContent value="ai" className="mt-6">
           <Card>

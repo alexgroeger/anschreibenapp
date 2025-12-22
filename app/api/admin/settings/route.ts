@@ -61,12 +61,17 @@ export async function POST(request: NextRequest) {
 
     const transaction = db.transaction(() => {
       for (const [key, data] of Object.entries(settings)) {
+        let value: string;
         if (typeof data === 'object' && data !== null && 'value' in data) {
-          updateSetting.run((data as any).value, key);
+          value = (data as any).value;
         } else {
           // Support simple key-value updates
-          updateSetting.run(data, key);
+          value = data as string;
         }
+        
+        // Für API-Key: Leere Strings speichern (um .env.local zu verwenden)
+        // Für andere Settings: Leere Strings als leeren Wert speichern
+        updateSetting.run(value || '', key);
       }
     });
 

@@ -85,6 +85,7 @@ export function initDatabase(): Database.Database {
   
   // Initialize default settings
   const defaultSettings = [
+    { key: 'google_api_key', value: '', category: 'api', description: 'Google Gemini API-Key (leer lassen, um .env.local zu verwenden)' },
     { key: 'ai_model', value: 'gemini-pro', category: 'ai', description: 'KI-Modell für alle Operationen' },
     { key: 'temperature_extract', value: '0.3', category: 'ai', description: 'Temperature für Extraktion' },
     { key: 'temperature_match', value: '0.5', category: 'ai', description: 'Temperature für Matching' },
