@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { extractPrompt } from '@/prompts/extract';
-import { generateText } from 'ai';
-import { google } from '@ai-sdk/google';
 import { getSettings } from '@/lib/database/settings';
+import { generateTextWithFallback } from '@/lib/ai/model-helper';
 
 export async function POST(request: NextRequest) {
   try {
@@ -18,16 +17,16 @@ export async function POST(request: NextRequest) {
 
     // Load settings from database
     const settings = getSettings();
-    const model = settings.ai_model || 'gemini-1.5-pro';
+    const preferredModel = settings.ai_model;
     const temperature = parseFloat(settings.temperature_extract || '0.3');
 
     const prompt = extractPrompt.replace('{jobDescription}', jobDescription);
 
-    const { text } = await generateText({
-      model: google(model),
+    const { text } = await generateTextWithFallback(
       prompt,
-      temperature,
-    });
+      preferredModel,
+      temperature
+    );
 
     // Try to parse JSON from the response
     let extractionData;
@@ -47,10 +46,20 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({ extraction: extractionData }, { status: 200 });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error extracting job data:', error);
+    
+    let errorMessage = 'Failed to extract job data';
+    if (error.message?.includes('quota') || error.message?.includes('Quota exceeded')) {
+      errorMessage = 'API-Quota überschritten. Bitte überprüfe dein Google Cloud-Konto. Besuche https://ai.dev/usage?tab=rate-limit für Details.';
+    } else if (error.message?.includes('API key')) {
+      errorMessage = 'API-Key fehlt oder ist ungültig. Bitte überprüfe deine .env.local Datei.';
+    } else if (error.message) {
+      errorMessage = error.message;
+    }
+    
     return NextResponse.json(
-      { error: 'Failed to extract job data' },
+      { error: errorMessage },
       { status: 500 }
     );
   }

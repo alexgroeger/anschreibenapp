@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { matchPrompt } from '@/prompts/match';
-import { generateText } from 'ai';
-import { google } from '@ai-sdk/google';
 import { getDatabase } from '@/lib/database/client';
 import { getSettings } from '@/lib/database/settings';
+import { generateTextWithFallback } from '@/lib/ai/model-helper';
 
 export async function POST(request: NextRequest) {
   try {
@@ -19,7 +18,7 @@ export async function POST(request: NextRequest) {
 
     // Load settings from database
     const settings = getSettings();
-    const model = settings.ai_model || 'gemini-1.5-pro';
+    const preferredModel = settings.ai_model;
     const temperature = parseFloat(settings.temperature_match || '0.5');
 
     const db = getDatabase();
@@ -42,11 +41,11 @@ export async function POST(request: NextRequest) {
       .replace('{resume}', resume)
       .replace('{oldCoverLetters}', oldCoverLetters);
 
-    const { text } = await generateText({
-      model: google(model),
+    const { text } = await generateTextWithFallback(
       prompt,
-      temperature,
-    });
+      preferredModel,
+      temperature
+    );
 
     return NextResponse.json({ matchResult: text }, { status: 200 });
   } catch (error) {

@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generatePrompt } from '@/prompts/generate';
 import { toneAnalysisPrompt } from '@/prompts/tone-analysis';
-import { generateText } from 'ai';
-import { google } from '@ai-sdk/google';
 import { getDatabase } from '@/lib/database/client';
 import { getSettings } from '@/lib/database/settings';
+import { generateTextWithFallback } from '@/lib/ai/model-helper';
 
 export async function POST(request: NextRequest) {
   try {
@@ -20,7 +19,7 @@ export async function POST(request: NextRequest) {
 
     // Load settings from database
     const settings = getSettings();
-    const model = settings.ai_model || 'gemini-1.5-pro';
+    const preferredModel = settings.ai_model;
     const temperatureGenerate = parseFloat(settings.temperature_generate || '0.7');
     const temperatureTone = parseFloat(settings.temperature_tone || '0.3');
     const defaultTone = settings.default_tone || 'professionell';
@@ -47,11 +46,11 @@ export async function POST(request: NextRequest) {
       const tonePrompt = toneAnalysisPrompt.replace('{oldCoverLetters}', oldCoverLetters);
       
       try {
-        const { text } = await generateText({
-          model: google(model),
-          prompt: tonePrompt,
-          temperature: temperatureTone,
-        });
+        const { text } = await generateTextWithFallback(
+          tonePrompt,
+          preferredModel,
+          temperatureTone
+        );
         toneAnalysis = text;
       } catch (error) {
         console.error('Error analyzing tone:', error);
@@ -67,11 +66,11 @@ export async function POST(request: NextRequest) {
       .replace('{focus}', focus || defaultFocus)
       .replace('{jobDescription}', jobDescription);
 
-    const { text } = await generateText({
-      model: google(model),
+    const { text } = await generateTextWithFallback(
       prompt,
-      temperature: temperatureGenerate,
-    });
+      preferredModel,
+      temperatureGenerate
+    );
 
     return NextResponse.json({ coverLetter: text }, { status: 200 });
   } catch (error) {
