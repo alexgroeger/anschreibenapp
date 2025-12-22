@@ -4,6 +4,7 @@ import { toneAnalysisPrompt } from '@/prompts/tone-analysis';
 import { generateText } from 'ai';
 import { google } from '@ai-sdk/google';
 import { getDatabase } from '@/lib/database/client';
+import { getSettings } from '@/lib/database/settings';
 
 export async function POST(request: NextRequest) {
   try {
@@ -16,6 +17,14 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    // Load settings from database
+    const settings = getSettings();
+    const model = settings.ai_model || 'gemini-1.5-pro';
+    const temperatureGenerate = parseFloat(settings.temperature_generate || '0.7');
+    const temperatureTone = parseFloat(settings.temperature_tone || '0.3');
+    const defaultTone = settings.default_tone || 'professionell';
+    const defaultFocus = settings.default_focus || 'skills';
 
     const db = getDatabase();
 
@@ -39,9 +48,9 @@ export async function POST(request: NextRequest) {
       
       try {
         const { text } = await generateText({
-          model: google('gemini-1.5-pro'),
+          model: google(model),
           prompt: tonePrompt,
-          temperature: 0.3,
+          temperature: temperatureTone,
         });
         toneAnalysis = text;
       } catch (error) {
@@ -54,14 +63,14 @@ export async function POST(request: NextRequest) {
       .replace('{matchResult}', matchResult)
       .replace('{resume}', resume)
       .replace('{toneAnalysis}', toneAnalysis)
-      .replace('{tone}', tone || 'professionell')
-      .replace('{focus}', focus || 'skills')
+      .replace('{tone}', tone || defaultTone)
+      .replace('{focus}', focus || defaultFocus)
       .replace('{jobDescription}', jobDescription);
 
     const { text } = await generateText({
-      model: google('gemini-1.5-pro'),
+      model: google(model),
       prompt,
-      temperature: 0.7,
+      temperature: temperatureGenerate,
     });
 
     return NextResponse.json({ coverLetter: text }, { status: 200 });

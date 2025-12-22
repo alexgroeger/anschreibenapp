@@ -3,6 +3,7 @@ import { matchPrompt } from '@/prompts/match';
 import { generateText } from 'ai';
 import { google } from '@ai-sdk/google';
 import { getDatabase } from '@/lib/database/client';
+import { getSettings } from '@/lib/database/settings';
 
 export async function POST(request: NextRequest) {
   try {
@@ -15,6 +16,11 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    // Load settings from database
+    const settings = getSettings();
+    const model = settings.ai_model || 'gemini-1.5-pro';
+    const temperature = parseFloat(settings.temperature_match || '0.5');
 
     const db = getDatabase();
 
@@ -37,9 +43,9 @@ export async function POST(request: NextRequest) {
       .replace('{oldCoverLetters}', oldCoverLetters);
 
     const { text } = await generateText({
-      model: google('gemini-1.5-pro'),
+      model: google(model),
       prompt,
-      temperature: 0.5,
+      temperature,
     });
 
     return NextResponse.json({ matchResult: text }, { status: 200 });
