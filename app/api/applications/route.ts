@@ -45,10 +45,12 @@ export async function POST(request: NextRequest) {
       position,
       job_description,
       extraction_data,
+      match_result,
       cover_letter,
       status,
       sent_at,
-      contacts
+      contacts,
+      deadline
     } = body;
     
     if (!company || !position) {
@@ -63,17 +65,19 @@ export async function POST(request: NextRequest) {
       // Insert application
       const result = db
         .prepare(`
-          INSERT INTO applications (company, position, job_description, extraction_data, cover_letter, status, sent_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?)
+          INSERT INTO applications (company, position, job_description, extraction_data, match_result, cover_letter, status, sent_at, deadline)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         `)
         .run(
           company,
           position,
           job_description || null,
           extraction_data ? JSON.stringify(extraction_data) : null,
+          match_result || null,
           cover_letter || null,
-          status || 'rueckmeldung_ausstehend',
-          sent_at || null
+          status || 'in_bearbeitung',
+          sent_at || null,
+          deadline || null
         );
       
       const applicationId = result.lastInsertRowid;

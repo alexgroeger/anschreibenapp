@@ -2,42 +2,76 @@
 
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
+import { FileUpload } from "@/components/ui/file-upload"
 
 export function OldCoverLetterUpload({ onUpload }: { onUpload?: () => void }) {
-  const [content, setContent] = useState("")
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null)
+  const [textContent, setTextContent] = useState("")
   const [company, setCompany] = useState("")
   const [position, setPosition] = useState("")
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
 
+  const handleFileSelect = (file: File) => {
+    setUploadedFile(file)
+    setTextContent("") // Clear text when file is selected
+    setMessage(null)
+  }
+
+  const handleTextInput = (text: string) => {
+    setTextContent(text)
+    setUploadedFile(null) // Clear file when text is entered
+  }
+
   const handleSave = async () => {
-    if (!content.trim()) {
-      setMessage({ type: 'error', text: 'Bitte geben Sie das Anschreiben ein.' })
+    // Check if either file or text content is provided
+    if (!uploadedFile && !textContent.trim()) {
+      setMessage({ type: 'error', text: 'Bitte laden Sie eine Datei hoch oder geben Sie das Anschreiben ein.' })
       return
     }
 
     setSaving(true)
     setMessage(null)
     try {
-      const response = await fetch('/api/old-cover-letters', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
-          content, 
-          company: company.trim() || null, 
-          position: position.trim() || null 
-        }),
-      })
+      let response: Response
+
+      if (uploadedFile) {
+        // Upload file using FormData
+        const formData = new FormData()
+        formData.append('file', uploadedFile)
+        if (company.trim()) {
+          formData.append('company', company.trim())
+        }
+        if (position.trim()) {
+          formData.append('position', position.trim())
+        }
+
+        response = await fetch('/api/old-cover-letters', {
+          method: 'POST',
+          body: formData,
+        })
+      } else {
+        // Upload text content using JSON
+        response = await fetch('/api/old-cover-letters', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ 
+            content: textContent, 
+            company: company.trim() || null, 
+            position: position.trim() || null 
+          }),
+        })
+      }
 
       if (response.ok) {
         setMessage({ type: 'success', text: 'Anschreiben erfolgreich gespeichert!' })
-        setContent("")
+        setTextContent("")
+        setUploadedFile(null)
         setCompany("")
         setPosition("")
         if (onUpload) {
@@ -60,6 +94,7 @@ export function OldCoverLetterUpload({ onUpload }: { onUpload?: () => void }) {
         <CardTitle>Altes Anschreiben hochladen</CardTitle>
         <CardDescription>
           Laden Sie historische Anschreiben hoch, um die Tonalität für zukünftige Generierungen zu verbessern.
+          Unterstützte Formate: PDF, TXT, DOCX, DOC
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -84,16 +119,12 @@ export function OldCoverLetterUpload({ onUpload }: { onUpload?: () => void }) {
           </div>
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="content">Anschreiben</Label>
-          <Textarea
-            id="content"
-            placeholder="Fügen Sie hier das Anschreiben ein..."
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            className="min-h-[300px]"
-          />
-        </div>
+        <FileUpload
+          onFileSelect={handleFileSelect}
+          onTextInput={handleTextInput}
+          accept=".pdf,.txt,.docx,.doc"
+          maxSize={10}
+        />
 
         {message && (
           <div className={`p-3 rounded-md ${
@@ -108,7 +139,7 @@ export function OldCoverLetterUpload({ onUpload }: { onUpload?: () => void }) {
         <Button 
           onClick={handleSave} 
           className="w-full"
-          disabled={saving || !content.trim()}
+          disabled={saving || (!uploadedFile && !textContent.trim())}
         >
           {saving ? 'Speichere...' : 'Anschreiben speichern'}
         </Button>

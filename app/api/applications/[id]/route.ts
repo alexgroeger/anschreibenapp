@@ -61,7 +61,7 @@ export async function PATCH(
     }
     
     const body = await request.json();
-    const { status, sent_at, company, position, cover_letter } = body;
+    const { status, sent_at, company, position, cover_letter, match_result } = body;
     
     const db = getDatabase();
     const updates: string[] = [];
@@ -86,6 +86,10 @@ export async function PATCH(
     if (cover_letter !== undefined) {
       updates.push('cover_letter = ?');
       values.push(cover_letter);
+    }
+    if (match_result !== undefined) {
+      updates.push('match_result = ?');
+      values.push(match_result);
     }
     
     if (updates.length === 0) {

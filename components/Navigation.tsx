@@ -14,6 +14,7 @@ import {
   BarChart3,
   Home,
   ChevronDown,
+  Sparkles,
 } from "lucide-react"
 import { useState, useEffect } from "react"
 
@@ -21,7 +22,7 @@ import { useState, useEffect } from "react"
 const mainNavItems = [
   {
     href: "/",
-    label: "Anschreiben erstellen",
+    label: "Bewerbung hinzufügen",
     icon: FileText,
     description: "Neues Anschreiben generieren",
   },
@@ -64,6 +65,12 @@ const adminNavItems = [
     label: "Einstellungen",
     icon: Settings,
     description: "System-Einstellungen",
+  },
+  {
+    href: "/admin/generierung",
+    label: "Generierung",
+    icon: Sparkles,
+    description: "Generierungs-Verwaltung",
   },
   {
     href: "/admin/database",

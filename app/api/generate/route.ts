@@ -8,7 +8,7 @@ import { generateTextWithFallback } from '@/lib/ai/model-helper';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { matchResult, jobDescription, tone, focus } = body;
+    const { matchResult, jobDescription, tone, focus, textLength, formality, emphasis } = body;
 
     if (!matchResult || !jobDescription) {
       return NextResponse.json(
@@ -24,6 +24,9 @@ export async function POST(request: NextRequest) {
     const temperatureTone = parseFloat(settings.temperature_tone || '0.3');
     const defaultTone = settings.default_tone || 'professionell';
     const defaultFocus = settings.default_focus || 'skills';
+    const defaultTextLength = settings.default_text_length || 'mittel';
+    const defaultFormality = settings.default_formality || 'formal';
+    const defaultEmphasis = settings.default_emphasis || 'kombiniert';
 
     const db = getDatabase();
 
@@ -64,6 +67,9 @@ export async function POST(request: NextRequest) {
       .replace('{toneAnalysis}', toneAnalysis)
       .replace('{tone}', tone || defaultTone)
       .replace('{focus}', focus || defaultFocus)
+      .replace('{textLength}', textLength || defaultTextLength)
+      .replace('{formality}', formality || defaultFormality)
+      .replace('{emphasis}', emphasis || defaultEmphasis)
       .replace('{jobDescription}', jobDescription);
 
     const { text } = await generateTextWithFallback(

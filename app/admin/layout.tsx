@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
-import { Home, Code, Settings, Database } from "lucide-react"
+import { Home, Code, Settings, Database, Sparkles } from "lucide-react"
 
 const adminNavItems = [
   {
@@ -20,6 +20,11 @@ const adminNavItems = [
     href: "/admin/settings",
     label: "Einstellungen",
     icon: Settings,
+  },
+  {
+    href: "/admin/generierung",
+    label: "Generierung",
+    icon: Sparkles,
   },
   {
     href: "/admin/database",

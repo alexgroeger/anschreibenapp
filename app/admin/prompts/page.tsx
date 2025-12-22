@@ -11,7 +11,6 @@ import { Breadcrumbs } from "@/components/Breadcrumbs"
 const promptNames = [
   { key: "extract", label: "Extraktion", description: "Analysiert Jobbeschreibungen" },
   { key: "match", label: "Matching", description: "Vergleicht Job mit Profil" },
-  { key: "generate", label: "Generierung", description: "Erstellt Anschreiben" },
   { key: "tone-analysis", label: "Tonalitäts-Analyse", description: "Analysiert Schreibstil" },
 ]
 
@@ -105,7 +104,7 @@ export default function PromptsPage() {
       </div>
 
       <Tabs value={selectedPrompt} onValueChange={setSelectedPrompt}>
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-3">
           {promptNames.map((prompt) => (
             <TabsTrigger key={prompt.key} value={prompt.key}>
               {prompt.label}

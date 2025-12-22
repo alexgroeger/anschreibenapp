@@ -11,6 +11,13 @@ Eine Web-App, die Bewerbungsschreiben basierend auf Jobanzeigen (URL/Datei) und 
 - **Datenbank:** SQLite mit better-sqlite3 (Single-User-App)
 - **Deployment:** Docker-Container (Node.js Umgebung)
 
+### Dependency-Management Richtlinie
+**Wichtig:** Es dürfen nur aktuelle und unterstützte Frameworks und Bibliotheken verwendet werden. 
+- Regelmäßige Überprüfung der Dependencies auf Aktualität (mindestens monatlich)
+- Sicherheits-Updates müssen sofort eingespielt werden
+- Major Version Updates erfordern einen Migrationsplan und umfassende Tests
+- Vor jedem Update: Backup erstellen und in separatem Branch testen
+
 ## Kernfunktionen
 
 ### 1. CV-Verwaltung (Einmalig)
@@ -264,3 +271,9 @@ Eine Web-App, die Bewerbungsschreiben basierend auf Jobanzeigen (URL/Datei) und 
 - `@ai-sdk/google` - Google Gemini Integration
 - `ai` - Vercel AI SDK
 - Shadcn UI Komponenten
+
+## Migrationsplan
+
+Der detaillierte Migrationsplan für Framework- und Bibliotheks-Updates ist in der separaten Datei [MIGRATION_PLAN.md](./MIGRATION_PLAN.md) dokumentiert.
+
+**Aktueller Status:** Phase 1 (Kritische Sicherheits-Updates) ausstehend

@@ -39,12 +39,19 @@ export function initDatabase(): Database.Database {
       position TEXT NOT NULL,
       job_description TEXT,
       extraction_data TEXT,
+      match_result TEXT,
       cover_letter TEXT,
       status TEXT DEFAULT 'rueckmeldung_ausstehend',
       sent_at DATETIME,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
+    
+    -- Add match_result column if it doesn't exist (for existing databases)
+    PRAGMA table_info(applications);
+    -- Check if match_result column exists, if not add it
+    -- Note: SQLite doesn't support IF NOT EXISTS for ALTER TABLE ADD COLUMN
+    -- So we'll handle this in a try-catch or check first
 
     CREATE TABLE IF NOT EXISTS contact_persons (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -82,6 +89,24 @@ export function initDatabase(): Database.Database {
       FOREIGN KEY (resume_id) REFERENCES resume(id) ON DELETE CASCADE
     );
   `);
+  
+  // Add match_result column to applications table if it doesn't exist
+  try {
+    const tableInfo = db.prepare("PRAGMA table_info(applications)").all() as any[];
+    const hasMatchResult = tableInfo.some((col: any) => col.name === 'match_result');
+    if (!hasMatchResult) {
+      db.exec(`ALTER TABLE applications ADD COLUMN match_result TEXT;`);
+    }
+    
+    // Add deadline column to applications table if it doesn't exist
+    const hasDeadline = tableInfo.some((col: any) => col.name === 'deadline');
+    if (!hasDeadline) {
+      db.exec(`ALTER TABLE applications ADD COLUMN deadline DATE;`);
+    }
+  } catch (error) {
+    // Column might already exist, ignore error
+    console.log('Column check:', error);
+  }
   
   // Initialize default settings
   const defaultSettings = [

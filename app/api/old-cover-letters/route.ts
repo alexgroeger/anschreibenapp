@@ -20,12 +20,78 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { content, company, position } = body;
+    const contentType = request.headers.get('content-type') || '';
+    let content: string;
+    let company: string | null = null;
+    let position: string | null = null;
+
+    // Check if request contains FormData (file upload)
+    if (contentType.includes('multipart/form-data')) {
+      const formData = await request.formData();
+      const file = formData.get('file') as File;
+      const companyForm = formData.get('company');
+      const positionForm = formData.get('position');
+      
+      if (!file) {
+        return NextResponse.json(
+          { error: 'File is required' },
+          { status: 400 }
+        );
+      }
+
+      if (companyForm && typeof companyForm === 'string') {
+        company = companyForm.trim() || null;
+      }
+      if (positionForm && typeof positionForm === 'string') {
+        position = positionForm.trim() || null;
+      }
+
+      try {
+        // Convert File to Buffer for server-side parsing
+        const arrayBuffer = await file.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+        const fileName = file.name.toLowerCase();
+        const fileExtension = fileName.split('.').pop()?.toLowerCase();
+        
+        // Parse based on file extension
+        if (fileExtension === 'pdf') {
+          const pdfParse = (await import('pdf-parse')).default;
+          const data = await pdfParse(buffer);
+          content = data.text;
+        } else if (fileExtension === 'txt') {
+          content = buffer.toString('utf-8');
+        } else if (fileExtension === 'docx' || fileExtension === 'doc') {
+          const mammoth = (await import('mammoth')).default;
+          const result = await mammoth.extractRawText({ buffer });
+          content = result.value;
+        } else {
+          // Try as text
+          content = buffer.toString('utf-8');
+        }
+      } catch (parseError: any) {
+        return NextResponse.json(
+          { error: `Failed to parse file: ${parseError.message}` },
+          { status: 400 }
+        );
+      }
+    } else {
+      // Handle JSON request (text input)
+      const body = await request.json();
+      content = body.content;
+      company = body.company || null;
+      position = body.position || null;
+      
+      if (!content || typeof content !== 'string') {
+        return NextResponse.json(
+          { error: 'Content is required' },
+          { status: 400 }
+        );
+      }
+    }
     
-    if (!content || typeof content !== 'string') {
+    if (!content || !content.trim()) {
       return NextResponse.json(
-        { error: 'Content is required' },
+        { error: 'Content cannot be empty' },
         { status: 400 }
       );
     }
@@ -33,16 +99,16 @@ export async function POST(request: NextRequest) {
     const db = getDatabase();
     const result = db
       .prepare('INSERT INTO old_cover_letters (content, company, position) VALUES (?, ?, ?)')
-      .run(content, company || null, position || null);
+      .run(content.trim(), company, position);
     
     return NextResponse.json(
       { message: 'Cover letter saved successfully', id: result.lastInsertRowid },
       { status: 201 }
     );
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error saving cover letter:', error);
     return NextResponse.json(
-      { error: 'Failed to save cover letter' },
+      { error: error.message || 'Failed to save cover letter' },
       { status: 500 }
     );
   }

@@ -25,9 +25,13 @@ export default function SettingsPage() {
       const response = await fetch("/api/admin/settings")
       const data = await response.json()
       setSettings(data.settings)
-      // Initialize edited settings with current values
+      // Initialize edited settings with current values (exclude generation category)
       const initial: Record<string, string> = {}
       Object.keys(data.settings).forEach((key) => {
+        // Skip generation category settings (they are now in the Generierung page)
+        if (data.settings[key].category === "generation") {
+          return
+        }
         // Für API-Key: Wenn leer, zeige leeren String (nicht den Wert aus .env.local)
         if (key === 'google_api_key' && !data.settings[key].value) {
           initial[key] = ''
@@ -76,6 +80,10 @@ export default function SettingsPage() {
   const handleReset = () => {
     const initial: Record<string, string> = {}
     Object.keys(settings).forEach((key) => {
+      // Skip generation category settings (they are now in the Generierung page)
+      if (settings[key].category === "generation") {
+        return
+      }
       if (key === 'google_api_key' && !settings[key].value) {
         initial[key] = ''
       } else {
@@ -159,7 +167,6 @@ export default function SettingsPage() {
         <TabsList>
           <TabsTrigger value="api">API-Konfiguration</TabsTrigger>
           <TabsTrigger value="ai">KI-Modell</TabsTrigger>
-          <TabsTrigger value="generation">Generierung</TabsTrigger>
         </TabsList>
 
         <TabsContent value="api" className="mt-6">
@@ -258,30 +265,6 @@ export default function SettingsPage() {
                     step={key.includes("temperature") ? "0.1" : undefined}
                     min={key.includes("temperature") ? "0" : undefined}
                     max={key.includes("temperature") ? "2" : undefined}
-                    value={editedSettings[key] || ""}
-                    onChange={(e) => handleSettingChange(key, e.target.value)}
-                  />
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="generation" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Generierungs-Einstellungen</CardTitle>
-              <CardDescription>
-                Standardwerte und Limits für die Anschreiben-Generierung
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {getSettingsByCategory("generation").map(([key, setting]) => (
-                <div key={key} className="space-y-2">
-                  <Label htmlFor={key}>{setting.description || key}</Label>
-                  <Input
-                    id={key}
-                    type={key.includes("words") ? "number" : "text"}
                     value={editedSettings[key] || ""}
                     onChange={(e) => handleSettingChange(key, e.target.value)}
                   />
