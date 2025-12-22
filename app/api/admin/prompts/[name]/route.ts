@@ -15,10 +15,10 @@ const prompts: Record<string, string> = {
 // GET: Einzelnen Prompt abrufen
 export async function GET(
   request: NextRequest,
-  { params }: { params: { name: string } }
+  { params }: { params: Promise<{ name: string }> }
 ) {
   try {
-    const promptName = params.name;
+    const { name: promptName } = await params;
 
     if (!prompts[promptName]) {
       return NextResponse.json(
