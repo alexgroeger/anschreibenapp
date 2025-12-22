@@ -108,12 +108,12 @@ export async function POST(request: NextRequest) {
       .prepare('SELECT * FROM applications WHERE id = ?')
       .get(applicationId) as any;
     
-    const contacts = db
+    const applicationContacts = db
       .prepare('SELECT * FROM contact_persons WHERE application_id = ?')
       .all(applicationId);
     
     return NextResponse.json(
-      { application: { ...application, contacts } },
+      { application: { ...application, contacts: applicationContacts } },
       { status: 201 }
     );
   } catch (error) {
