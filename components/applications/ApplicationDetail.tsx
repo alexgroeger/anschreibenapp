@@ -13,6 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Markdown } from "@/components/ui/markdown"
 import { format } from "date-fns"
 import { Pencil, Save, X, Building2, Briefcase, Calendar, User, Mail, Phone, ExternalLink, Plus, Trash2, Euro, FileText, MapPin, Clock } from "lucide-react"
+import { CoverLetterChat } from "@/components/cover-letter/CoverLetterChat"
 
 interface Contact {
   id: number
@@ -71,9 +72,13 @@ export function ApplicationDetail() {
   const loadApplication = useCallback(async () => {
     if (!params?.id) return
     
+    // Handle both string and array formats (Next.js 15 compatibility)
+    const id = Array.isArray(params.id) ? params.id[0] : params.id
+    if (!id) return
+    
     setLoading(true)
     try {
-      const response = await fetch(`/api/applications/${params.id}`)
+      const response = await fetch(`/api/applications/${id}`)
       if (!response.ok) {
         throw new Error('Failed to load application')
       }
@@ -420,27 +425,32 @@ export function ApplicationDetail() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main content - left side */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Tabs for Cover Letter and Matching */}
+          {/* Tabs for Cover Letter, Matching and Chat */}
           <Tabs defaultValue="cover-letter" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
+            <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="cover-letter">Anschreiben</TabsTrigger>
               <TabsTrigger value="matching">Matching</TabsTrigger>
+              <TabsTrigger value="chat">Chat</TabsTrigger>
             </TabsList>
             
             {/* Cover Letter Tab */}
             <TabsContent value="cover-letter" className="mt-4">
-              {application.cover_letter ? (
+              {application.job_description ? (
                 <Card>
             <CardHeader>
               <div className="flex justify-between items-center">
                 <div>
                   <CardTitle>Anschreiben</CardTitle>
-                  <CardDescription className="mt-1">Ihr generiertes Anschreiben</CardDescription>
+                  <CardDescription className="mt-1">
+                    {application.cover_letter ? 'Ihr generiertes Anschreiben' : 'Erstellen Sie ein neues Anschreiben'}
+                  </CardDescription>
                 </div>
-                <Button onClick={handleSaveCoverLetter} disabled={saving}>
-                  <Save className="h-4 w-4 mr-2" />
-                  {saving ? 'Speichere...' : 'Speichern'}
-                </Button>
+                {editedCoverLetter && (
+                  <Button onClick={handleSaveCoverLetter} disabled={saving}>
+                    <Save className="h-4 w-4 mr-2" />
+                    {saving ? 'Speichere...' : 'Speichern'}
+                  </Button>
+                )}
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -476,11 +486,11 @@ export function ApplicationDetail() {
 
               <Button
                 onClick={handleRegenerate}
-                variant="outline"
+                variant={application.cover_letter ? "outline" : "default"}
                 className="w-full"
                 disabled={regenerating}
               >
-                {regenerating ? 'Regeneriere...' : 'Anschreiben neu generieren'}
+                {regenerating ? 'Generiere...' : application.cover_letter ? 'Anschreiben neu generieren' : 'Anschreiben generieren'}
               </Button>
 
               <div className="space-y-2">
@@ -489,7 +499,7 @@ export function ApplicationDetail() {
                   value={editedCoverLetter}
                   onChange={(e) => setEditedCoverLetter(e.target.value)}
                   className="min-h-[400px] font-mono text-sm"
-                  placeholder="Ihr Anschreiben..."
+                  placeholder={application.cover_letter ? "Ihr Anschreiben..." : "Klicken Sie auf 'Anschreiben generieren', um ein Anschreiben zu erstellen..."}
                 />
               </div>
             </CardContent>
@@ -497,7 +507,7 @@ export function ApplicationDetail() {
               ) : (
                 <Card>
                   <CardContent className="py-8 text-center text-muted-foreground">
-                    <p>Noch kein Anschreiben vorhanden</p>
+                    <p>Keine Jobbeschreibung vorhanden. Bitte fügen Sie eine Jobbeschreibung hinzu, um ein Anschreiben zu erstellen.</p>
                   </CardContent>
                 </Card>
               )}
@@ -523,6 +533,29 @@ export function ApplicationDetail() {
                 <Card>
                   <CardContent className="py-8 text-center text-muted-foreground">
                     <p>Noch kein Matching-Ergebnis vorhanden</p>
+                  </CardContent>
+                </Card>
+              )}
+            </TabsContent>
+            
+            {/* Chat Tab */}
+            <TabsContent value="chat" className="mt-4">
+              {application.job_description ? (
+                <div className="h-[600px]">
+                  <CoverLetterChat
+                    coverLetter={editedCoverLetter || 'Noch kein Anschreiben vorhanden. Bitte generieren Sie zuerst ein Anschreiben im Tab "Anschreiben".'}
+                    matchResult={application.match_result || ''}
+                    jobDescription={application.job_description}
+                    extraction={extractionData}
+                    onCoverLetterUpdate={(newCoverLetter) => {
+                      setEditedCoverLetter(newCoverLetter)
+                    }}
+                  />
+                </div>
+              ) : (
+                <Card>
+                  <CardContent className="py-8 text-center text-muted-foreground">
+                    <p>Keine Jobbeschreibung vorhanden. Bitte fügen Sie eine Jobbeschreibung hinzu, um den Chat zu nutzen.</p>
                   </CardContent>
                 </Card>
               )}

@@ -1,33 +1,121 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDatabase } from '@/lib/database/client';
+import { getDatabase, getCachedStatement } from '@/lib/database/client';
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status');
+    const company = searchParams.get('company');
+    const limit = parseInt(searchParams.get('limit') || '50');
+    const offset = parseInt(searchParams.get('offset') || '0');
+    const page = parseInt(searchParams.get('page') || '1');
     
     const db = getDatabase();
-    let query = 'SELECT * FROM applications';
+    
+    // Build WHERE clause
+    const whereConditions: string[] = [];
     const params: any[] = [];
     
     if (status) {
-      query += ' WHERE status = ?';
+      whereConditions.push('a.status = ?');
       params.push(status);
     }
     
-    query += ' ORDER BY created_at DESC';
+    if (company) {
+      whereConditions.push('a.company LIKE ?');
+      params.push(`%${company}%`);
+    }
     
-    const applications = db.prepare(query).all(...params);
+    const whereClause = whereConditions.length > 0 
+      ? `WHERE ${whereConditions.join(' AND ')}` 
+      : '';
     
-    // Load contact persons for each application
-    const applicationsWithContacts = applications.map((app: any) => {
-      const contacts = db
-        .prepare('SELECT * FROM contact_persons WHERE application_id = ?')
-        .all(app.id);
-      return { ...app, contacts };
-    });
+    // Calculate offset from page if provided
+    const finalOffset = page > 1 ? (page - 1) * limit : offset;
     
-    return NextResponse.json({ applications: applicationsWithContacts }, { status: 200 });
+    // Only select fields needed for the dashboard list (exclude large TEXT fields)
+    // This dramatically reduces data transfer and memory usage
+    const query = `
+      SELECT 
+        a.id,
+        a.company,
+        a.position,
+        a.status,
+        a.sent_at,
+        a.created_at,
+        a.updated_at,
+        a.deadline
+      FROM applications a
+      ${whereClause}
+      ORDER BY a.created_at DESC
+      LIMIT ? OFFSET ?
+    `;
+    
+    params.push(limit, finalOffset);
+    
+    const applications = db.prepare(query).all(...params) as any[];
+    
+    // Load contacts separately but efficiently (only for the applications we're returning)
+    const applicationIds = applications.map((app: any) => app.id);
+    let contactsMap: Record<number, any[]> = {};
+    
+    if (applicationIds.length > 0) {
+      // Use IN clause to load all contacts in one query
+      const placeholders = applicationIds.map(() => '?').join(',');
+      const contactsQuery = `
+        SELECT 
+          application_id,
+          id,
+          name,
+          email,
+          phone,
+          position,
+          created_at
+        FROM contact_persons
+        WHERE application_id IN (${placeholders})
+        ORDER BY application_id, created_at DESC
+      `;
+      
+      const allContacts = db.prepare(contactsQuery).all(...applicationIds) as any[];
+      
+      // Group contacts by application_id
+      allContacts.forEach((contact: any) => {
+        if (!contactsMap[contact.application_id]) {
+          contactsMap[contact.application_id] = [];
+        }
+        contactsMap[contact.application_id].push({
+          id: contact.id,
+          name: contact.name,
+          email: contact.email,
+          phone: contact.phone,
+          position: contact.position,
+          created_at: contact.created_at
+        });
+      });
+    }
+    
+    // Combine applications with their contacts
+    const applicationsWithContacts = applications.map((app: any) => ({
+      ...app,
+      contacts: contactsMap[app.id] || []
+    }));
+    
+    // Get total count for pagination (optimized with same WHERE clause)
+    const countQuery = `SELECT COUNT(*) as total FROM applications a ${whereClause}`;
+    const countParams = params.slice(0, -2); // Remove limit and offset
+    const totalResult = getCachedStatement(countQuery).get(...countParams) as { total: number };
+    const total = totalResult.total;
+    
+    return NextResponse.json({ 
+      applications: applicationsWithContacts,
+      pagination: {
+        total,
+        limit,
+        offset: finalOffset,
+        page: page || Math.floor(finalOffset / limit) + 1,
+        totalPages: Math.ceil(total / limit)
+      }
+    }, { status: 200 });
   } catch (error) {
     console.error('Error fetching applications:', error);
     return NextResponse.json(
@@ -80,7 +168,7 @@ export async function POST(request: NextRequest) {
           deadline || null
         );
       
-      const applicationId = result.lastInsertRowid;
+      const applicationId = Number(result.lastInsertRowid);
       
       // Insert contact persons if provided
       if (contacts && Array.isArray(contacts)) {
@@ -111,6 +199,13 @@ export async function POST(request: NextRequest) {
     const application = db
       .prepare('SELECT * FROM applications WHERE id = ?')
       .get(applicationId) as any;
+    
+    if (!application) {
+      return NextResponse.json(
+        { error: 'Failed to retrieve created application' },
+        { status: 500 }
+      );
+    }
     
     const applicationContacts = db
       .prepare('SELECT * FROM contact_persons WHERE application_id = ?')

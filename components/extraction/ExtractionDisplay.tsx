@@ -220,6 +220,199 @@ export function ExtractionDisplay({ extraction, onProceed, onExtractionChange, o
                 placeholder="Bewerbungsfrist"
               />
             </div>
+
+            {/* Contact Persons - Integrated */}
+            <div className="pt-4 border-t space-y-3">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm font-semibold flex items-center gap-2">
+                  <User className="h-4 w-4" />
+                  Kontaktpersonen
+                </Label>
+                {hasContacts && (
+                  <span className="text-xs text-muted-foreground">
+                    {editedExtraction.contacts?.length} {editedExtraction.contacts?.length === 1 ? 'Kontaktperson' : 'Kontaktpersonen'}
+                  </span>
+                )}
+              </div>
+
+              {/* Show message if no contacts */}
+              {!hasContacts && (
+                <Alert>
+                  <AlertDescription className="text-xs">
+                    Es wurde keine Kontaktperson gefunden. Sie können unten eine hinzufügen.
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              {/* Existing Contacts */}
+              {hasContacts && (
+                <div className="space-y-3">
+                  {editedExtraction.contacts!.map((contact, idx) => (
+                    <div key={idx} className="border rounded-lg p-3 space-y-2 relative">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="absolute top-2 right-2 h-6 w-6 p-0"
+                        onClick={() => handleRemoveContact(idx)}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                      
+                      <div className="space-y-2">
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">Name</Label>
+                          <Input
+                            value={contact.name || ""}
+                            onChange={(e) => handleContactChange(idx, 'name', e.target.value)}
+                            className="text-sm h-8"
+                          />
+                        </div>
+                        
+                        {contact.position !== undefined && (
+                          <div className="space-y-1">
+                            <Label className="text-xs text-muted-foreground flex items-center gap-1">
+                              <Briefcase className="h-3 w-3" />
+                              Position
+                            </Label>
+                            <Input
+                              value={contact.position || ""}
+                              onChange={(e) => handleContactChange(idx, 'position', e.target.value)}
+                              className="text-sm h-8"
+                              placeholder="Position"
+                            />
+                          </div>
+                        )}
+                        
+                        {contact.email !== undefined && (
+                          <div className="space-y-1">
+                            <Label className="text-xs text-muted-foreground flex items-center gap-1">
+                              <Mail className="h-3 w-3" />
+                              E-Mail
+                            </Label>
+                            <Input
+                              type="email"
+                              value={contact.email || ""}
+                              onChange={(e) => handleContactChange(idx, 'email', e.target.value)}
+                              className="text-sm h-8"
+                              placeholder="E-Mail"
+                            />
+                          </div>
+                        )}
+                        
+                        {contact.phone !== undefined && (
+                          <div className="space-y-1">
+                            <Label className="text-xs text-muted-foreground flex items-center gap-1">
+                              <Phone className="h-3 w-3" />
+                              Telefon
+                            </Label>
+                            <Input
+                              type="tel"
+                              value={contact.phone || ""}
+                              onChange={(e) => handleContactChange(idx, 'phone', e.target.value)}
+                              className="text-sm h-8"
+                              placeholder="Telefon"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Add Contact Button / Form */}
+              {!showAddContact ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => setShowAddContact(true)}
+                >
+                  <Plus className="h-3 w-3 mr-2" />
+                  Kontaktperson hinzufügen
+                </Button>
+              ) : (
+                <div className="border rounded-lg p-3 space-y-2">
+                  <div className="space-y-2">
+                    <Label className="text-xs font-semibold">Neue Kontaktperson</Label>
+                    
+                    <div className="space-y-2">
+                      <div className="space-y-1">
+                        <Label className="text-xs text-muted-foreground">Name *</Label>
+                        <Input
+                          value={newContact.name}
+                          onChange={(e) => setNewContact({ ...newContact, name: e.target.value })}
+                          className="text-sm h-8"
+                          placeholder="Name"
+                        />
+                      </div>
+                      
+                      <div className="space-y-1">
+                        <Label className="text-xs text-muted-foreground flex items-center gap-1">
+                          <Briefcase className="h-3 w-3" />
+                          Position
+                        </Label>
+                        <Input
+                          value={newContact.position || ""}
+                          onChange={(e) => setNewContact({ ...newContact, position: e.target.value })}
+                          className="text-sm h-8"
+                          placeholder="Position"
+                        />
+                      </div>
+                      
+                      <div className="space-y-1">
+                        <Label className="text-xs text-muted-foreground flex items-center gap-1">
+                          <Mail className="h-3 w-3" />
+                          E-Mail
+                        </Label>
+                        <Input
+                          type="email"
+                          value={newContact.email || ""}
+                          onChange={(e) => setNewContact({ ...newContact, email: e.target.value })}
+                          className="text-sm h-8"
+                          placeholder="E-Mail"
+                        />
+                      </div>
+                      
+                      <div className="space-y-1">
+                        <Label className="text-xs text-muted-foreground flex items-center gap-1">
+                          <Phone className="h-3 w-3" />
+                          Telefon
+                        </Label>
+                        <Input
+                          type="tel"
+                          value={newContact.phone || ""}
+                          onChange={(e) => setNewContact({ ...newContact, phone: e.target.value })}
+                          className="text-sm h-8"
+                          placeholder="Telefon"
+                        />
+                      </div>
+                    </div>
+                    
+                    <div className="flex gap-2 pt-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1 h-8"
+                        onClick={() => {
+                          setShowAddContact(false)
+                          setNewContact({ name: "", email: "", phone: "", position: "" })
+                        }}
+                      >
+                        Abbrechen
+                      </Button>
+                      <Button
+                        size="sm"
+                        className="flex-1 h-8"
+                        onClick={handleAddContact}
+                      >
+                        Hinzufügen
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           </CardContent>
         </Card>
 
@@ -286,195 +479,6 @@ export function ExtractionDisplay({ extraction, onProceed, onExtractionChange, o
           </CardContent>
         </Card>
 
-        {/* Contact Persons Card */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Kontaktpersonen</CardTitle>
-            <CardDescription>
-              {hasContacts 
-                ? `${editedExtraction.contacts?.length} ${editedExtraction.contacts?.length === 1 ? 'Kontaktperson' : 'Kontaktpersonen'}`
-                : 'Keine Kontaktpersonen gefunden'}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {/* Show message if no contacts */}
-            {!hasContacts && (
-              <Alert>
-                <AlertDescription>
-                  Es wurde keine Kontaktperson gefunden. Sie können unten eine hinzufügen.
-                </AlertDescription>
-              </Alert>
-            )}
-
-            {/* Existing Contacts */}
-            {hasContacts && (
-              <div className="space-y-3">
-                {editedExtraction.contacts!.map((contact, idx) => (
-                  <div key={idx} className="border rounded-lg p-4 space-y-2 relative">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="absolute top-2 right-2 h-6 w-6 p-0"
-                      onClick={() => handleRemoveContact(idx)}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                    
-                    <div className="space-y-2">
-                      <div className="space-y-1">
-                        <Label className="text-xs text-muted-foreground">Name</Label>
-                        <Input
-                          value={contact.name || ""}
-                          onChange={(e) => handleContactChange(idx, 'name', e.target.value)}
-                          className="text-sm"
-                        />
-                      </div>
-                      
-                      {contact.position !== undefined && (
-                        <div className="space-y-1">
-                          <Label className="text-xs text-muted-foreground flex items-center gap-1">
-                            <Briefcase className="h-3 w-3" />
-                            Position
-                          </Label>
-                          <Input
-                            value={contact.position || ""}
-                            onChange={(e) => handleContactChange(idx, 'position', e.target.value)}
-                            className="text-sm"
-                            placeholder="Position"
-                          />
-                        </div>
-                      )}
-                      
-                      {contact.email !== undefined && (
-                        <div className="space-y-1">
-                          <Label className="text-xs text-muted-foreground flex items-center gap-1">
-                            <Mail className="h-3 w-3" />
-                            E-Mail
-                          </Label>
-                          <Input
-                            type="email"
-                            value={contact.email || ""}
-                            onChange={(e) => handleContactChange(idx, 'email', e.target.value)}
-                            className="text-sm"
-                            placeholder="E-Mail"
-                          />
-                        </div>
-                      )}
-                      
-                      {contact.phone !== undefined && (
-                        <div className="space-y-1">
-                          <Label className="text-xs text-muted-foreground flex items-center gap-1">
-                            <Phone className="h-3 w-3" />
-                            Telefon
-                          </Label>
-                          <Input
-                            type="tel"
-                            value={contact.phone || ""}
-                            onChange={(e) => handleContactChange(idx, 'phone', e.target.value)}
-                            className="text-sm"
-                            placeholder="Telefon"
-                          />
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Add Contact Button / Form */}
-            {!showAddContact ? (
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={() => setShowAddContact(true)}
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Kontaktperson hinzufügen
-              </Button>
-            ) : (
-              <div className="border rounded-lg p-4 space-y-3">
-                <div className="space-y-2">
-                  <Label className="text-sm font-semibold">Neue Kontaktperson</Label>
-                  
-                  <div className="space-y-2">
-                    <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">Name *</Label>
-                      <Input
-                        value={newContact.name}
-                        onChange={(e) => setNewContact({ ...newContact, name: e.target.value })}
-                        className="text-sm"
-                        placeholder="Name"
-                      />
-                    </div>
-                    
-                    <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground flex items-center gap-1">
-                        <Briefcase className="h-3 w-3" />
-                        Position
-                      </Label>
-                      <Input
-                        value={newContact.position || ""}
-                        onChange={(e) => setNewContact({ ...newContact, position: e.target.value })}
-                        className="text-sm"
-                        placeholder="Position"
-                      />
-                    </div>
-                    
-                    <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground flex items-center gap-1">
-                        <Mail className="h-3 w-3" />
-                        E-Mail
-                      </Label>
-                      <Input
-                        type="email"
-                        value={newContact.email || ""}
-                        onChange={(e) => setNewContact({ ...newContact, email: e.target.value })}
-                        className="text-sm"
-                        placeholder="E-Mail"
-                      />
-                    </div>
-                    
-                    <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground flex items-center gap-1">
-                        <Phone className="h-3 w-3" />
-                        Telefon
-                      </Label>
-                      <Input
-                        type="tel"
-                        value={newContact.phone || ""}
-                        onChange={(e) => setNewContact({ ...newContact, phone: e.target.value })}
-                        className="text-sm"
-                        placeholder="Telefon"
-                      />
-                    </div>
-                  </div>
-                  
-                  <div className="flex gap-2 pt-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="flex-1"
-                      onClick={() => {
-                        setShowAddContact(false)
-                        setNewContact({ name: "", email: "", phone: "", position: "" })
-                      }}
-                    >
-                      Abbrechen
-                    </Button>
-                    <Button
-                      size="sm"
-                      className="flex-1"
-                      onClick={handleAddContact}
-                    >
-                      Hinzufügen
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
       </div>
     </div>
   )

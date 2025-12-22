@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase } from '@/lib/database/client';
+import { parseFile } from '@/lib/file-parser';
+
+// Force Node.js runtime for file parsing (pdf-parse and mammoth require Node.js)
+export const runtime = 'nodejs';
 
 export async function GET() {
   try {
@@ -47,28 +51,10 @@ export async function POST(request: NextRequest) {
       }
 
       try {
-        // Convert File to Buffer for server-side parsing
-        const arrayBuffer = await file.arrayBuffer();
-        const buffer = Buffer.from(arrayBuffer);
-        const fileName = file.name.toLowerCase();
-        const fileExtension = fileName.split('.').pop()?.toLowerCase();
-        
-        // Parse based on file extension
-        if (fileExtension === 'pdf') {
-          const pdfParse = (await import('pdf-parse')).default;
-          const data = await pdfParse(buffer);
-          content = data.text;
-        } else if (fileExtension === 'txt') {
-          content = buffer.toString('utf-8');
-        } else if (fileExtension === 'docx' || fileExtension === 'doc') {
-          const mammoth = (await import('mammoth')).default;
-          const result = await mammoth.extractRawText({ buffer });
-          content = result.value;
-        } else {
-          // Try as text
-          content = buffer.toString('utf-8');
-        }
+        // Use the centralized file parser
+        content = await parseFile(file);
       } catch (parseError: any) {
+        console.error('File parsing error:', parseError);
         return NextResponse.json(
           { error: `Failed to parse file: ${parseError.message}` },
           { status: 400 }

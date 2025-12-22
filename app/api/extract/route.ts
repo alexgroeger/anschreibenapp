@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { extractPrompt } from '@/prompts/extract';
 import { getSettings } from '@/lib/database/settings';
 import { generateTextWithFallback } from '@/lib/ai/model-helper';
+import { parseFile } from '@/lib/file-parser';
+
+// Force Node.js runtime for file parsing (pdf-parse and mammoth require Node.js)
+export const runtime = 'nodejs';
 
 export async function POST(request: NextRequest) {
   try {
@@ -9,8 +13,19 @@ export async function POST(request: NextRequest) {
     let jobDescription: string;
 
     // Check if request contains FormData (file upload)
+    // Note: multipart/form-data includes boundary, so we check for the prefix
     if (contentType.includes('multipart/form-data')) {
-      const formData = await request.formData();
+      let formData: FormData;
+      try {
+        formData = await request.formData();
+      } catch (formError: any) {
+        console.error('Error parsing form data:', formError);
+        return NextResponse.json(
+          { error: `Failed to parse form data: ${formError.message}` },
+          { status: 400 }
+        );
+      }
+      
       const file = formData.get('file') as File;
       
       if (!file) {
@@ -21,30 +36,20 @@ export async function POST(request: NextRequest) {
       }
 
       try {
-        // Convert File to Buffer for server-side parsing
-        const arrayBuffer = await file.arrayBuffer();
-        const buffer = Buffer.from(arrayBuffer);
-        const fileName = file.name.toLowerCase();
-        const fileExtension = fileName.split('.').pop()?.toLowerCase();
+        // Use the centralized file parser
+        jobDescription = await parseFile(file);
         
-        // Parse based on file extension
-        if (fileExtension === 'pdf') {
-          const pdfParse = (await import('pdf-parse')).default;
-          const data = await pdfParse(buffer);
-          jobDescription = data.text;
-        } else if (fileExtension === 'txt') {
-          jobDescription = buffer.toString('utf-8');
-        } else if (fileExtension === 'docx' || fileExtension === 'doc') {
-          const mammoth = (await import('mammoth')).default;
-          const result = await mammoth.extractRawText({ buffer });
-          jobDescription = result.value;
-        } else {
-          // Try as text
-          jobDescription = buffer.toString('utf-8');
+        if (!jobDescription || jobDescription.trim().length === 0) {
+          return NextResponse.json(
+            { error: 'File appears to be empty or could not be parsed' },
+            { status: 400 }
+          );
         }
       } catch (parseError: any) {
+        console.error('File parsing error:', parseError);
+        console.error('Error stack:', parseError.stack);
         return NextResponse.json(
-          { error: `Failed to parse file: ${parseError.message}` },
+          { error: `Failed to parse file: ${parseError.message || 'Unknown error'}` },
           { status: 400 }
         );
       }
@@ -197,6 +202,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(response, { status: 200 });
   } catch (error: any) {
     console.error('Error extracting job data:', error);
+    console.error('Error stack:', error.stack);
     
     // Strukturierte Fehlerantwort
     const errorResponse: any = {

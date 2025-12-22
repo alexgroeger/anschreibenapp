@@ -11,7 +11,7 @@ Analysiere die Jobbeschreibung und extrahiere:
 7. **Deadline**: Das Bewerbungsfrist-Datum (falls in der Beschreibung erwähnt, z.B. "Bewerbungsfrist: 31.12.2024" oder "Bewerbungsschluss: 15. Januar 2025"). Format: ISO 8601 Datum (YYYY-MM-DD) oder null wenn nicht gefunden.
 8. **Vergütung**: Gehalt, Lohn oder Vergütungsangaben (z.B. "50.000€ - 70.000€", "nach Tarif", "nach Vereinbarung"). Format: string oder null.
 9. **Befristung**: Art des Arbeitsvertrags (z.B. "unbefristet", "befristet auf 2 Jahre", "Projektbezogen", "Vollzeit unbefristet"). Format: string oder null.
-10. **Arbeitsplatz**: Arbeitsort und Arbeitsmodell (z.B. "Remote", "Hybrid", "Vor Ort", "Homeoffice möglich", "Berlin"). Format: string oder null.
+10. **Arbeitsplatz**: Arbeitsort und Arbeitsmodell (z.B. "Remote", "Hybrid", "Vor Ort", "Homeoffice möglich", "Standort"). Format: string oder null.
 11. **Möglicher Start**: Startdatum oder Startzeitraum (z.B. "ab sofort", "zum nächstmöglichen Zeitpunkt", "01.03.2025", "Q2 2025"). Format: string oder null (kann auch als ISO 8601 Datum YYYY-MM-DD sein, wenn ein konkretes Datum gefunden wird).
 12. **Kontaktpersonen**: Extrahiere ALLE Kontaktinformationen (Name, E-Mail, Telefon, Position) falls vorhanden. 
 

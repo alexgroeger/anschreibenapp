@@ -3,17 +3,9 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import {
   Dialog,
   DialogContent,
@@ -27,29 +19,21 @@ import { FileUpload } from "@/components/ui/file-upload"
 import { ExtractionDisplay } from "@/components/extraction/ExtractionDisplay"
 import { Markdown } from "@/components/ui/markdown"
 import { WorkflowStepper, type WorkflowStep } from "@/components/workflow/WorkflowStepper"
-import { CoverLetterChat } from "@/components/cover-letter/CoverLetterChat"
-import { ArrowLeft, ArrowRight } from "lucide-react"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { ArrowLeft } from "lucide-react"
 
 export default function Home() {
   const router = useRouter()
   const [currentStep, setCurrentStep] = useState<WorkflowStep>('upload')
   const [jobText, setJobText] = useState("")
   const [uploadedFile, setUploadedFile] = useState<File | null>(null)
-  const [tone, setTone] = useState("professionell")
-  const [focus, setFocus] = useState("skills")
-  const [textLength, setTextLength] = useState("mittel")
-  const [formality, setFormality] = useState("formal")
-  const [emphasis, setEmphasis] = useState("kombiniert")
   const [extraction, setExtraction] = useState<any>(null)
   const [matchResult, setMatchResult] = useState("")
-  const [coverLetter, setCoverLetter] = useState("")
   const [loading, setLoading] = useState(false)
   const [company, setCompany] = useState("")
   const [position, setPosition] = useState("")
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<any>(null)
-  const [showDecisionDialog, setShowDecisionDialog] = useState(false)
+  const [showCreateApplicationDialog, setShowCreateApplicationDialog] = useState(false)
 
   const handleFileSelect = (file: File) => {
     setUploadedFile(file)
@@ -93,7 +77,21 @@ export default function Home() {
         })
       }
 
+      // Check if response is JSON
+      const contentType = response.headers.get('content-type')
+      const isJson = contentType && contentType.includes('application/json')
+      
       if (response.ok) {
+        if (!isJson) {
+          const text = await response.text()
+          console.error('Non-JSON response:', text.substring(0, 200))
+          setError({
+            error: 'Server returned invalid response format',
+            type: 'UNKNOWN_ERROR',
+          })
+          return
+        }
+        
         const data = await response.json()
         setExtraction(data.extraction)
         setCurrentStep('extraction')
@@ -139,8 +137,26 @@ export default function Home() {
           }
         }
       } else {
-        const data = await response.json()
-        setError(data)
+        // Try to parse error as JSON, fallback to text
+        let errorData
+        try {
+          if (isJson) {
+            errorData = await response.json()
+          } else {
+            const text = await response.text()
+            errorData = {
+              error: `Server error: ${response.status} ${response.statusText}`,
+              details: text.substring(0, 500),
+              type: 'HTTP_ERROR',
+            }
+          }
+        } catch (parseError) {
+          errorData = {
+            error: `Server error: ${response.status} ${response.statusText}`,
+            type: 'HTTP_ERROR',
+          }
+        }
+        setError(errorData)
       }
     } catch (error: any) {
       console.error('Error extracting:', error)
@@ -190,55 +206,7 @@ export default function Home() {
     }
   }
 
-  const handleGenerate = async () => {
-    if (!matchResult) {
-      alert('Bitte führen Sie zuerst ein Matching durch.')
-      return
-    }
-
-    setError(null)
-    setLoading(true)
-    try {
-      const response = await fetch('/api/generate', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          matchResult,
-          jobDescription: jobText,
-          tone,
-          focus,
-          textLength,
-          formality,
-          emphasis,
-        }),
-      })
-
-      if (response.ok) {
-        const data = await response.json()
-        setCoverLetter(data.coverLetter)
-        // Nach Generierung direkt zum Entscheidungs-Dialog (decision Schritt)
-        setCurrentStep('decision')
-        setError(null)
-        // Show decision dialog after generation
-        setShowDecisionDialog(true)
-      } else {
-        const data = await response.json()
-        setError(data)
-      }
-    } catch (error: any) {
-      console.error('Error generating:', error)
-      setError({
-        error: error.message || 'Fehler bei der Generierung',
-        type: 'UNKNOWN_ERROR',
-      })
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleSaveApplication = async () => {
+  const handleCreateApplication = async () => {
     if (!company.trim() || !position.trim()) {
       alert('Bitte geben Sie Unternehmen und Position ein.')
       return
@@ -257,7 +225,7 @@ export default function Home() {
           job_description: jobText,
           extraction_data: extraction,
           match_result: matchResult,
-          cover_letter: coverLetter,
+          cover_letter: null, // Kein Anschreiben beim Erstellen
           status: 'in_bearbeitung',
           contacts: extraction?.contacts || [],
           deadline: extraction?.deadline || null,
@@ -266,16 +234,16 @@ export default function Home() {
 
       if (response.ok) {
         const data = await response.json()
-        setShowDecisionDialog(false)
+        setShowCreateApplicationDialog(false)
         // Direkt zur Detailseite der neuen Bewerbung weiterleiten
         router.push(`/dashboard/${data.application.id}`)
       } else {
         const data = await response.json()
-        alert(data.error || 'Fehler beim Speichern')
+        alert(data.error || 'Fehler beim Erstellen der Bewerbung')
       }
     } catch (error) {
-      console.error('Error saving application:', error)
-      alert('Fehler beim Speichern')
+      console.error('Error creating application:', error)
+      alert('Fehler beim Erstellen der Bewerbung')
     } finally {
       setSaving(false)
     }
@@ -286,12 +254,10 @@ export default function Home() {
       setCurrentStep('upload')
     } else if (currentStep === 'matching') {
       setCurrentStep('extraction')
-    } else if (currentStep === 'decision') {
-      setCurrentStep('matching')
     }
   }
 
-  const canGoBack = currentStep !== 'upload' && currentStep !== 'saved' && currentStep !== 'generation'
+  const canGoBack = currentStep !== 'upload' && currentStep !== 'saved'
 
   return (
     <main className="min-h-screen bg-background p-8">
@@ -311,8 +277,6 @@ export default function Home() {
                   handleExtract()
                 } else if (currentStep === 'extraction') {
                   handleMatch()
-                } else if (currentStep === 'matching') {
-                  handleGenerate()
                 }
               }}
             />
@@ -336,7 +300,7 @@ export default function Home() {
               <Button 
                 onClick={handleExtract} 
                 className="w-full"
-                disabled={!jobText.trim() || loading}
+                disabled={(!jobText.trim() && !uploadedFile) || loading}
               >
                 {loading ? 'Analysiere...' : 'Weiter zur Extraktion'}
               </Button>
@@ -396,184 +360,24 @@ export default function Home() {
                   <Markdown content={matchResult} />
                 </div>
                 <Button 
-                  onClick={handleGenerate} 
+                  onClick={() => setShowCreateApplicationDialog(true)}
                   className="w-full"
                   disabled={loading}
                 >
-                  {loading ? "Generiere..." : "Weiter zur Generierung"}
+                  Neue Bewerbung erstellen?
                 </Button>
               </CardContent>
             </Card>
           </div>
         )}
 
-        {/* Step 4: Generation (wird als 'decision' im Stepper angezeigt) */}
-        {(currentStep === 'generation' || currentStep === 'decision') && coverLetter && (
-          <div className="space-y-6">
-            {canGoBack && (
-              <Button variant="outline" onClick={handleBack}>
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Zurück
-              </Button>
-            )}
-            
-            <Tabs defaultValue="editor" className="w-full">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="editor">Editor & Parameter</TabsTrigger>
-                <TabsTrigger value="chat">KI-Chat</TabsTrigger>
-              </TabsList>
-              
-              <TabsContent value="editor" className="space-y-6">
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Anschreiben-Parameter</CardTitle>
-                      <CardDescription>
-                        Passen Sie die Generierungsparameter an
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="tone">Tonalität</Label>
-                          <Select value={tone} onValueChange={setTone}>
-                            <SelectTrigger id="tone">
-                              <SelectValue placeholder="Tonalität wählen" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="professionell">Professionell</SelectItem>
-                              <SelectItem value="modern">Modern</SelectItem>
-                              <SelectItem value="enthusiastisch">Enthusiastisch</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label htmlFor="focus">Fokus</Label>
-                          <Select value={focus} onValueChange={setFocus}>
-                            <SelectTrigger id="focus">
-                              <SelectValue placeholder="Fokus wählen" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="skills">Skills</SelectItem>
-                              <SelectItem value="motivation">Motivation</SelectItem>
-                              <SelectItem value="erfahrung">Erfahrung</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="textLength">Textlänge</Label>
-                        <Select value={textLength} onValueChange={setTextLength}>
-                          <SelectTrigger id="textLength">
-                            <SelectValue placeholder="Textlänge wählen" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="kurz">Kurz (200-300 Wörter)</SelectItem>
-                            <SelectItem value="mittel">Mittel (300-400 Wörter)</SelectItem>
-                            <SelectItem value="lang">Lang (400-500 Wörter)</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="formality">Formalität</Label>
-                        <Select value={formality} onValueChange={setFormality}>
-                          <SelectTrigger id="formality">
-                            <SelectValue placeholder="Formalität wählen" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="sehr_formal">Sehr formal</SelectItem>
-                            <SelectItem value="formal">Formal</SelectItem>
-                            <SelectItem value="modern">Modern</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="emphasis">Betonung</Label>
-                        <Select value={emphasis} onValueChange={setEmphasis}>
-                          <SelectTrigger id="emphasis">
-                            <SelectValue placeholder="Betonung wählen" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="skills">Skills</SelectItem>
-                            <SelectItem value="motivation">Motivation</SelectItem>
-                            <SelectItem value="erfahrung">Erfahrung</SelectItem>
-                            <SelectItem value="kombiniert">Kombiniert</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <Button 
-                        onClick={handleGenerate} 
-                        className="w-full"
-                        disabled={loading}
-                        variant="outline"
-                      >
-                        {loading ? "Regeneriere..." : "Anschreiben neu generieren"}
-                      </Button>
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Generiertes Anschreiben</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <Textarea
-                        value={coverLetter}
-                        onChange={(e) => setCoverLetter(e.target.value)}
-                        className="min-h-[500px] font-mono text-sm"
-                      />
-                    </CardContent>
-                  </Card>
-                </div>
-              </TabsContent>
-              
-              <TabsContent value="chat" className="space-y-6">
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Anschreiben</CardTitle>
-                      <CardDescription>
-                        Aktuelles Anschreiben (bearbeitbar)
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <Textarea
-                        value={coverLetter}
-                        onChange={(e) => setCoverLetter(e.target.value)}
-                        className="min-h-[500px] font-mono text-sm"
-                      />
-                    </CardContent>
-                  </Card>
-                  
-                  <div className="h-[600px]">
-                    <CoverLetterChat
-                      coverLetter={coverLetter}
-                      matchResult={matchResult}
-                      jobDescription={jobText}
-                      extraction={extraction}
-                      onCoverLetterUpdate={(newCoverLetter) => {
-                        setCoverLetter(newCoverLetter)
-                      }}
-                    />
-                  </div>
-                </div>
-              </TabsContent>
-            </Tabs>
-          </div>
-        )}
-
-        {/* Decision Dialog */}
-        <Dialog open={showDecisionDialog} onOpenChange={setShowDecisionDialog}>
+        {/* Create Application Dialog */}
+        <Dialog open={showCreateApplicationDialog} onOpenChange={setShowCreateApplicationDialog}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Bewerbung speichern?</DialogTitle>
+              <DialogTitle>Neue Bewerbung erstellen?</DialogTitle>
               <DialogDescription>
-                Möchten Sie diese Bewerbung in Ihrem Dashboard speichern?
+                Möchten Sie eine neue Bewerbung in Ihrem Dashboard erstellen? Das Anschreiben können Sie später auf der Detailseite erstellen.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
@@ -610,17 +414,16 @@ export default function Home() {
               <Button
                 variant="outline"
                 onClick={() => {
-                  setShowDecisionDialog(false)
-                  setCurrentStep('decision')
+                  setShowCreateApplicationDialog(false)
                 }}
               >
-                Nein, nur anzeigen
+                Nein, abbrechen
               </Button>
               <Button
-                onClick={handleSaveApplication}
+                onClick={handleCreateApplication}
                 disabled={saving || !company.trim() || !position.trim()}
               >
-                {saving ? 'Speichere...' : 'Ja, speichern'}
+                {saving ? 'Erstelle...' : 'Ja, Bewerbung erstellen'}
               </Button>
             </DialogFooter>
           </DialogContent>

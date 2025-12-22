@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
       return new Response('Messages are required', { status: 400 });
     }
 
-    if (!coverLetter) {
+    if (!coverLetter || coverLetter.trim() === '') {
       return new Response('Cover letter is required', { status: 400 });
     }
 
@@ -62,24 +62,27 @@ ${extraction ? `- Extraktionsdaten: ${JSON.stringify(extraction).substring(0, 50
 
       // Convert messages to AI SDK format - handle both old and new message formats
       const aiMessages = messages.map((msg: any) => {
-        // Handle different message formats
+        // Handle different message formats from useChat
         let content = ''
-        if (msg.text) {
-          content = msg.text
-        } else if (msg.content) {
-          content = msg.content
-        } else if (msg.parts) {
+        if (msg.parts && Array.isArray(msg.parts)) {
+          // New format with parts array
           content = msg.parts
             .filter((part: any) => part.type === 'text')
             .map((part: any) => part.text)
             .join('')
+        } else if (msg.text) {
+          content = msg.text
+        } else if (msg.content) {
+          content = msg.content
+        } else if (typeof msg === 'string') {
+          content = msg
         }
         
         return {
           role: msg.role === 'user' ? ('user' as const) : ('assistant' as const),
-          content: content,
+          content: content || '',
         }
-      }) as Array<{ role: 'user' | 'assistant'; content: string }>;
+      }).filter((msg: any) => msg.content) as Array<{ role: 'user' | 'assistant'; content: string }>;
 
       // Stream the response
       const result = await streamText({

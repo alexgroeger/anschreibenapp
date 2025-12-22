@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDatabase } from '@/lib/database/client';
+import { getDatabase, getCachedStatement } from '@/lib/database/client';
 
 export async function GET(
   request: NextRequest,
@@ -16,9 +16,7 @@ export async function GET(
       );
     }
     
-    const db = getDatabase();
-    const application = db
-      .prepare('SELECT * FROM applications WHERE id = ?')
+    const application = getCachedStatement('SELECT * FROM applications WHERE id = ?')
       .get(id) as any;
     
     if (!application) {
@@ -28,8 +26,7 @@ export async function GET(
       );
     }
     
-    const contacts = db
-      .prepare('SELECT * FROM contact_persons WHERE application_id = ?')
+    const contacts = getCachedStatement('SELECT * FROM contact_persons WHERE application_id = ?')
       .all(id);
     
     return NextResponse.json(
@@ -113,12 +110,10 @@ export async function PATCH(
       );
     }
     
-    const application = db
-      .prepare('SELECT * FROM applications WHERE id = ?')
+    const application = getCachedStatement('SELECT * FROM applications WHERE id = ?')
       .get(id) as any;
     
-    const contacts = db
-      .prepare('SELECT * FROM contact_persons WHERE application_id = ?')
+    const contacts = getCachedStatement('SELECT * FROM contact_persons WHERE application_id = ?')
       .all(id);
     
     return NextResponse.json(

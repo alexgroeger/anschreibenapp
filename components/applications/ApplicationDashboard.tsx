@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useMemo, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
@@ -45,36 +45,77 @@ const statusColors: Record<string, string> = {
   'rueckmeldung_ausstehend': 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200',
 }
 
+interface PaginationInfo {
+  total: number
+  limit: number
+  offset: number
+  page: number
+  totalPages: number
+}
+
 export function ApplicationDashboard() {
   const [applications, setApplications] = useState<Application[]>([])
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [companyFilter, setCompanyFilter] = useState<string>("")
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pagination, setPagination] = useState<PaginationInfo | null>(null)
   const [editingId, setEditingId] = useState<number | null>(null)
   const [editingField, setEditingField] = useState<string | null>(null)
   const [editValues, setEditValues] = useState<{ company?: string; position?: string; status?: string }>({})
   const router = useRouter()
   const inputRef = useRef<HTMLInputElement>(null)
+  const companyFilterTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
-  const loadApplications = async () => {
+  const loadApplications = useCallback(async (page: number, status: string, company: string) => {
     setLoading(true)
     try {
-      const url = statusFilter === "all" 
-        ? '/api/applications'
-        : `/api/applications?status=${statusFilter}`
+      const params = new URLSearchParams()
+      if (status !== "all") {
+        params.append('status', status)
+      }
+      if (company.trim()) {
+        params.append('company', company.trim())
+      }
+      params.append('page', page.toString())
+      params.append('limit', '50')
+      
+      const url = `/api/applications?${params.toString()}`
       const response = await fetch(url)
       const data = await response.json()
       setApplications(data.applications || [])
+      if (data.pagination) {
+        setPagination(data.pagination)
+      }
     } catch (error) {
       console.error('Error loading applications:', error)
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
   useEffect(() => {
-    loadApplications()
-  }, [statusFilter])
+    loadApplications(1, statusFilter, companyFilter)
+    setCurrentPage(1)
+  }, [statusFilter, loadApplications])
+
+  // Debounce company filter
+  useEffect(() => {
+    if (companyFilterTimeoutRef.current) {
+      clearTimeout(companyFilterTimeoutRef.current)
+    }
+    
+    companyFilterTimeoutRef.current = setTimeout(() => {
+      loadApplications(1, statusFilter, companyFilter)
+      setCurrentPage(1)
+    }, 500) // 500ms debounce
+
+    return () => {
+      if (companyFilterTimeoutRef.current) {
+        clearTimeout(companyFilterTimeoutRef.current)
+      }
+    }
+  }, [companyFilter, statusFilter, loadApplications])
 
   useEffect(() => {
     if (editingId && editingField && inputRef.current) {
@@ -83,19 +124,19 @@ export function ApplicationDashboard() {
     }
   }, [editingId, editingField])
 
-  const handleStartEdit = (id: number, field: string, currentValue: string) => {
+  const handleStartEdit = useCallback((id: number, field: string, currentValue: string) => {
     setEditingId(id)
     setEditingField(field)
     setEditValues({ [field]: currentValue })
-  }
+  }, [])
 
-  const handleCancelEdit = () => {
+  const handleCancelEdit = useCallback(() => {
     setEditingId(null)
     setEditingField(null)
     setEditValues({})
-  }
+  }, [])
 
-  const handleSaveEdit = async (id: number, field: string) => {
+  const handleSaveEdit = useCallback(async (id: number, field: string) => {
     const value = editValues[field as keyof typeof editValues]
     if (value === undefined) {
       handleCancelEdit()
@@ -112,7 +153,7 @@ export function ApplicationDashboard() {
       })
 
       if (response.ok) {
-        await loadApplications()
+        await loadApplications(currentPage, statusFilter, companyFilter)
         handleCancelEdit()
       } else {
         console.error('Failed to update application')
@@ -122,31 +163,32 @@ export function ApplicationDashboard() {
       console.error('Error updating application:', error)
       alert('Fehler beim Speichern der Änderungen')
     }
-  }
+  }, [editValues, loadApplications, currentPage, handleCancelEdit])
 
-  const handleKeyDown = (e: React.KeyboardEvent, id: number, field: string) => {
+  const handleKeyDown = useCallback((e: React.KeyboardEvent, id: number, field: string) => {
     if (e.key === 'Enter') {
       handleSaveEdit(id, field)
     } else if (e.key === 'Escape') {
       handleCancelEdit()
     }
-  }
+  }, [handleSaveEdit, handleCancelEdit])
 
-  const handleRowClick = (id: number, e: React.MouseEvent) => {
+  const handleRowClick = useCallback((id: number, e: React.MouseEvent) => {
     // Don't navigate if clicking on editable fields or buttons
     const target = e.target as HTMLElement
     if (target.tagName === 'INPUT' || target.tagName === 'SELECT' || target.closest('button')) {
       return
     }
     router.push(`/dashboard/${id}`)
-  }
+  }, [router])
 
-  const filteredApplications = applications.filter(app => {
-    if (companyFilter && !app.company.toLowerCase().includes(companyFilter.toLowerCase())) {
-      return false
-    }
-    return true
-  })
+  const handlePageChange = useCallback((newPage: number) => {
+    setCurrentPage(newPage)
+    loadApplications(newPage)
+  }, [loadApplications])
+
+  // Applications are already filtered server-side, no need for client-side filtering
+  const displayedApplications = useMemo(() => applications, [applications])
 
   if (loading) {
     return <div className="text-center py-8">Lade Bewerbungen...</div>
@@ -182,7 +224,7 @@ export function ApplicationDashboard() {
         </div>
       </div>
 
-      {filteredApplications.length === 0 ? (
+      {displayedApplications.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center text-muted-foreground">
             <p className="text-lg mb-2">
@@ -194,20 +236,21 @@ export function ApplicationDashboard() {
           </CardContent>
         </Card>
       ) : (
-        <div className="border rounded-lg overflow-hidden">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-[200px]">Firma</TableHead>
-                <TableHead className="w-[200px]">Position</TableHead>
-                <TableHead className="w-[150px]">Status</TableHead>
-                <TableHead className="w-[120px]">Gesendet am</TableHead>
-                <TableHead className="w-[120px]">Erstellt am</TableHead>
-                <TableHead>Kontaktpersonen</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredApplications.map((application) => (
+        <>
+          <div className="border rounded-lg overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[200px]">Firma</TableHead>
+                  <TableHead className="w-[200px]">Position</TableHead>
+                  <TableHead className="w-[150px]">Status</TableHead>
+                  <TableHead className="w-[120px]">Gesendet am</TableHead>
+                  <TableHead className="w-[120px]">Erstellt am</TableHead>
+                  <TableHead>Kontaktpersonen</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {displayedApplications.map((application) => (
                 <TableRow
                   key={application.id}
                   onClick={(e) => handleRowClick(application.id, e)}
@@ -257,7 +300,6 @@ export function ApplicationDashboard() {
                       e.stopPropagation()
                       handleStartEdit(application.id, 'status', application.status)
                     }}
-                    onClick={(e) => e.stopPropagation()}
                   >
                     {editingId === application.id && editingField === 'status' ? (
                       <Select
@@ -275,7 +317,7 @@ export function ApplicationDashboard() {
                             })
 
                             if (response.ok) {
-                              await loadApplications()
+                              await loadApplications(currentPage, statusFilter, companyFilter)
                               handleCancelEdit()
                             } else {
                               console.error('Failed to update application')
@@ -328,9 +370,39 @@ export function ApplicationDashboard() {
                   </TableCell>
                 </TableRow>
               ))}
-            </TableBody>
-          </Table>
-        </div>
+              </TableBody>
+            </Table>
+          </div>
+          
+          {pagination && pagination.totalPages > 1 && (
+            <div className="flex items-center justify-between px-2 py-4">
+              <div className="text-sm text-muted-foreground">
+                Zeige {((pagination.page - 1) * pagination.limit) + 1} bis {Math.min(pagination.page * pagination.limit, pagination.total)} von {pagination.total} Bewerbungen
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handlePageChange(pagination.page - 1)}
+                  disabled={pagination.page <= 1}
+                >
+                  Zurück
+                </Button>
+                <div className="text-sm">
+                  Seite {pagination.page} von {pagination.totalPages}
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handlePageChange(pagination.page + 1)}
+                  disabled={pagination.page >= pagination.totalPages}
+                >
+                  Weiter
+                </Button>
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   )

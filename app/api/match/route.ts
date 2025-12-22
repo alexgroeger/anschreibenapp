@@ -27,9 +27,9 @@ export async function POST(request: NextRequest) {
     const resumeData = db.prepare('SELECT * FROM resume ORDER BY updated_at DESC LIMIT 1').get() as any;
     const resume = resumeData?.content || 'Kein Lebenslauf hinterlegt.';
 
-    // Load old cover letters from database
+    // Load old cover letters from database (limit to last 20 for performance)
     const oldCoverLettersData = db
-      .prepare('SELECT * FROM old_cover_letters ORDER BY uploaded_at DESC')
+      .prepare('SELECT * FROM old_cover_letters ORDER BY uploaded_at DESC LIMIT 20')
       .all() as any[];
     
     const oldCoverLetters = oldCoverLettersData.length > 0

@@ -131,5 +131,13 @@ export function initDatabase(): Database.Database {
     insertSetting.run(setting.key, setting.value, setting.category, setting.description);
   }
   
+  // Create indexes for performance optimization
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_applications_status ON applications(status);
+    CREATE INDEX IF NOT EXISTS idx_applications_created_at ON applications(created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_contact_persons_application_id ON contact_persons(application_id);
+    CREATE INDEX IF NOT EXISTS idx_old_cover_letters_uploaded_at ON old_cover_letters(uploaded_at DESC);
+  `);
+  
   return db;
 }

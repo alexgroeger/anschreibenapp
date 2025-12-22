@@ -1,12 +1,12 @@
-import pdfParse from 'pdf-parse';
-import mammoth from 'mammoth';
-
 /**
  * Parse a PDF file and extract text content
  */
 export async function parsePDF(file: File): Promise<string> {
   const arrayBuffer = await file.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
+  
+  // Dynamic import to avoid issues with native dependencies
+  const pdfParse = (await import('pdf-parse')).default;
   const data = await pdfParse(buffer);
   return data.text;
 }
@@ -23,6 +23,9 @@ export async function parseTXT(file: File): Promise<string> {
  */
 export async function parseDOCX(file: File): Promise<string> {
   const arrayBuffer = await file.arrayBuffer();
+  
+  // Dynamic import to avoid issues with native dependencies
+  const mammoth = (await import('mammoth')).default;
   const result = await mammoth.extractRawText({ arrayBuffer });
   return result.value;
 }

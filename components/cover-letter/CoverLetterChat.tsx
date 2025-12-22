@@ -26,31 +26,27 @@ export function CoverLetterChat({
   const [input, setInput] = useState("")
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
-  const chat = useChat({
-    body: {
+  const { messages, sendMessage, status } = useChat({
+    api: '/api/chat',
+    body: () => ({
       coverLetter,
       matchResult,
       jobDescription,
       extraction,
-    },
-    onFinish: () => {
-      // Extract text from the last message after it finishes
-      const lastMessage = chat.messages[chat.messages.length - 1]
-      if (lastMessage && lastMessage.role === 'assistant') {
-        const content = getMessageContent(lastMessage).trim()
-        
-        // Check if the message looks like a new cover letter (long text without question marks)
-        if (content.length > 200 && !content.includes('?') && !content.toLowerCase().includes('frage')) {
-          // Likely a new cover letter - update it
-          if (onCoverLetterUpdate) {
-            onCoverLetterUpdate(content)
-          }
+    }),
+    onFinish: (message) => {
+      // Extract text from the finished message
+      const content = getMessageContent(message).trim()
+      
+      // Check if the message looks like a new cover letter (long text without question marks)
+      if (content.length > 200 && !content.includes('?') && !content.toLowerCase().includes('frage')) {
+        // Likely a new cover letter - update it
+        if (onCoverLetterUpdate) {
+          onCoverLetterUpdate(content)
         }
       }
     },
   })
-  
-  const { messages, sendMessage, status } = chat
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -72,17 +68,18 @@ export function CoverLetterChat({
 
   const getMessageContent = (message: any): string => {
     // Handle different message structures from AI SDK
+    // In the new version, messages have a 'parts' array or direct content
     if (message.parts && Array.isArray(message.parts)) {
       return message.parts
         .filter((part: any) => part.type === 'text')
         .map((part: any) => part.text)
         .join('') || ''
-    } else if (typeof message === 'string') {
-      return message
     } else if (message.text) {
       return message.text
     } else if (message.content) {
       return message.content
+    } else if (typeof message === 'string') {
+      return message
     }
     return ''
   }
