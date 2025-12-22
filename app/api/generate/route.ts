@@ -73,11 +73,28 @@ export async function POST(request: NextRequest) {
     );
 
     return NextResponse.json({ coverLetter: text }, { status: 200 });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error generating cover letter:', error);
-    return NextResponse.json(
-      { error: 'Failed to generate cover letter' },
-      { status: 500 }
-    );
+    
+    const errorResponse: any = {
+      error: error.message || 'Failed to generate cover letter',
+      type: error.type || 'UNKNOWN_ERROR',
+    };
+    
+    if (error.type === 'QUOTA_ERROR') {
+      errorResponse.type = 'QUOTA_ERROR';
+      errorResponse.model = error.model;
+      errorResponse.helpUrl = 'https://ai.dev/usage?tab=rate-limit';
+      errorResponse.message = 'API-Quota überschritten';
+    } else if (error.type === 'API_KEY_ERROR') {
+      errorResponse.type = 'API_KEY_ERROR';
+      errorResponse.message = 'API-Key Problem';
+    } else if (error.type === 'MODEL_ERROR') {
+      errorResponse.type = 'MODEL_ERROR';
+      errorResponse.testedModels = error.testedModels;
+      errorResponse.message = 'Kein funktionierendes Modell gefunden';
+    }
+    
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }

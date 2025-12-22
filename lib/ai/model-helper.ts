@@ -49,19 +49,38 @@ export async function generateTextWithFallback(
       
       // Quota-Fehler - das Modell funktioniert, aber Quota ist überschritten
       if (errorMessage.includes('quota') || errorMessage.includes('Quota exceeded')) {
-        throw new Error(
+        const quotaError: any = new Error(
           `API-Quota überschritten. Bitte überprüfe dein Google Cloud-Konto und die Quota-Limits. ` +
           `Modell ${modelName} wurde erkannt, aber die Quota ist aufgebraucht. ` +
           `Besuche https://ai.dev/usage?tab=rate-limit für Details.`
         );
+        quotaError.type = 'QUOTA_ERROR';
+        quotaError.model = modelName;
+        throw quotaError;
       }
       
-      // Bei anderen Fehlern (z.B. API-Key), werfe sofort
+      // API-Key Fehler
+      if (errorMessage.includes('API key') || errorMessage.includes('apiKey')) {
+        const apiKeyError: any = new Error(
+          'API-Key fehlt oder ist ungültig. Bitte überprüfe deine .env.local Datei und stelle sicher, dass GOOGLE_GENERATIVE_AI_API_KEY gesetzt ist.'
+        );
+        apiKeyError.type = 'API_KEY_ERROR';
+        throw apiKeyError;
+      }
+      
+      // Bei anderen Fehlern (z.B. Netzwerk), werfe sofort
       throw error;
     }
   }
 
-  throw new Error(
-    `Kein funktionierendes Modell gefunden. Letzter Fehler: ${lastError?.message || 'Unbekannt'}`
+  // Alle Modelle haben fehlgeschlagen
+  const modelError: any = new Error(
+    `Kein funktionierendes Modell gefunden. Alle ${modelsToTry.length} Modellnamen wurden getestet, aber keines ist verfügbar. ` +
+    `Letzter Fehler: ${lastError?.message || 'Unbekannt'}. ` +
+    `Bitte überprüfe deine API-Konfiguration oder kontaktiere den Support.`
   );
+  modelError.type = 'MODEL_ERROR';
+  modelError.testedModels = modelsToTry;
+  modelError.lastError = lastError?.message;
+  throw modelError;
 }

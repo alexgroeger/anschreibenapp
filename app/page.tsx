@@ -15,6 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import Link from "next/link"
+import { ErrorMessage } from "@/components/ErrorMessage"
 
 export default function Home() {
   const router = useRouter()
@@ -29,6 +30,7 @@ export default function Home() {
   const [company, setCompany] = useState("")
   const [position, setPosition] = useState("")
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<any>(null)
 
   const handleExtract = async () => {
     if (!jobInput.trim()) {
@@ -36,6 +38,7 @@ export default function Home() {
       return
     }
 
+    setError(null)
     setLoading(true)
     try {
       const response = await fetch('/api/extract', {
@@ -50,6 +53,7 @@ export default function Home() {
         const data = await response.json()
         setExtraction(data.extraction)
         setStep('extracted')
+        setError(null)
         
         // Try to extract company and position from job description
         if (data.extraction) {
@@ -66,11 +70,14 @@ export default function Home() {
         }
       } else {
         const data = await response.json()
-        alert(data.error || 'Fehler bei der Extraktion')
+        setError(data)
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error extracting:', error)
-      alert('Fehler bei der Extraktion')
+      setError({
+        error: error.message || 'Fehler bei der Extraktion',
+        type: 'UNKNOWN_ERROR',
+      })
     } finally {
       setLoading(false)
     }
@@ -82,6 +89,7 @@ export default function Home() {
       return
     }
 
+    setError(null)
     setLoading(true)
     try {
       const response = await fetch('/api/match', {
@@ -96,13 +104,17 @@ export default function Home() {
         const data = await response.json()
         setMatchResult(data.matchResult)
         setStep('matched')
+        setError(null)
       } else {
         const data = await response.json()
-        alert(data.error || 'Fehler beim Matching')
+        setError(data)
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error matching:', error)
-      alert('Fehler beim Matching')
+      setError({
+        error: error.message || 'Fehler beim Matching',
+        type: 'UNKNOWN_ERROR',
+      })
     } finally {
       setLoading(false)
     }
@@ -114,6 +126,7 @@ export default function Home() {
       return
     }
 
+    setError(null)
     setLoading(true)
     try {
       const response = await fetch('/api/generate', {
@@ -133,13 +146,17 @@ export default function Home() {
         const data = await response.json()
         setCoverLetter(data.coverLetter)
         setStep('generated')
+        setError(null)
       } else {
         const data = await response.json()
-        alert(data.error || 'Fehler bei der Generierung')
+        setError(data)
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error generating:', error)
-      alert('Fehler bei der Generierung')
+      setError({
+        error: error.message || 'Fehler bei der Generierung',
+        type: 'UNKNOWN_ERROR',
+      })
     } finally {
       setLoading(false)
     }
@@ -200,6 +217,24 @@ export default function Home() {
             hoch. Dieser wird automatisch für Matching und Generierung verwendet.
           </p>
         </div>
+
+        {error && (
+          <div className="mb-6">
+            <ErrorMessage 
+              error={error} 
+              onRetry={() => {
+                setError(null)
+                if (step === 'input') {
+                  handleExtract()
+                } else if (step === 'extracted') {
+                  handleMatch()
+                } else if (step === 'matched') {
+                  handleGenerate()
+                }
+              }}
+            />
+          </div>
+        )}
         
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Links: Input-Bereich */}

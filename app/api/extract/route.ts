@@ -49,18 +49,34 @@ export async function POST(request: NextRequest) {
   } catch (error: any) {
     console.error('Error extracting job data:', error);
     
-    let errorMessage = 'Failed to extract job data';
-    if (error.message?.includes('quota') || error.message?.includes('Quota exceeded')) {
-      errorMessage = 'API-Quota überschritten. Bitte überprüfe dein Google Cloud-Konto. Besuche https://ai.dev/usage?tab=rate-limit für Details.';
+    // Strukturierte Fehlerantwort
+    const errorResponse: any = {
+      error: error.message || 'Failed to extract job data',
+      type: error.type || 'UNKNOWN_ERROR',
+    };
+    
+    // Zusätzliche Informationen je nach Fehlertyp
+    if (error.type === 'QUOTA_ERROR') {
+      errorResponse.type = 'QUOTA_ERROR';
+      errorResponse.model = error.model;
+      errorResponse.helpUrl = 'https://ai.dev/usage?tab=rate-limit';
+      errorResponse.message = 'API-Quota überschritten';
+    } else if (error.type === 'API_KEY_ERROR') {
+      errorResponse.type = 'API_KEY_ERROR';
+      errorResponse.message = 'API-Key Problem';
+    } else if (error.type === 'MODEL_ERROR') {
+      errorResponse.type = 'MODEL_ERROR';
+      errorResponse.testedModels = error.testedModels;
+      errorResponse.message = 'Kein funktionierendes Modell gefunden';
+    } else if (error.message?.includes('quota') || error.message?.includes('Quota exceeded')) {
+      errorResponse.type = 'QUOTA_ERROR';
+      errorResponse.message = 'API-Quota überschritten';
+      errorResponse.helpUrl = 'https://ai.dev/usage?tab=rate-limit';
     } else if (error.message?.includes('API key')) {
-      errorMessage = 'API-Key fehlt oder ist ungültig. Bitte überprüfe deine .env.local Datei.';
-    } else if (error.message) {
-      errorMessage = error.message;
+      errorResponse.type = 'API_KEY_ERROR';
+      errorResponse.message = 'API-Key Problem';
     }
     
-    return NextResponse.json(
-      { error: errorMessage },
-      { status: 500 }
-    );
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }
