@@ -17,6 +17,7 @@ interface CoverLetterChatProps {
   extraction?: any
   onCoverLetterUpdate?: (newCoverLetter: string) => void
   onSuggestionCreated?: (suggestion: Omit<Suggestion, 'id' | 'application_id' | 'created_at'>) => void
+  onPendingChanges?: (newCoverLetter: string, originalCoverLetter: string) => void
 }
 
 export function CoverLetterChat({
@@ -26,9 +27,16 @@ export function CoverLetterChat({
   extraction,
   onCoverLetterUpdate,
   onSuggestionCreated,
+  onPendingChanges,
 }: CoverLetterChatProps) {
   const [input, setInput] = useState("")
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const originalCoverLetterRef = useRef<string>(coverLetter)
+
+  // Update original cover letter ref when coverLetter prop changes
+  useEffect(() => {
+    originalCoverLetterRef.current = coverLetter
+  }, [coverLetter])
 
   const { messages, sendMessage, status, error } = useChat({
     baseUrl: typeof window !== 'undefined' ? window.location.origin : '',
@@ -42,52 +50,151 @@ export function CoverLetterChat({
     onError: (error: Error) => {
       console.error('Chat error:', error)
     },
-    onFinish: (message: any) => {
-      console.log('Chat message finished:', message)
+    onFinish: (result: any) => {
+      console.log('Chat message finished:', result)
+      console.log('Result structure:', {
+        hasMessage: !!result.message,
+        hasMessages: !!result.messages,
+        keys: Object.keys(result || {}),
+        resultType: typeof result
+      })
+      
+      // The actual message is in result.message
+      const message = result.message || result
+      console.log('Message object:', {
+        hasText: !!message.text,
+        hasContent: !!message.content,
+        hasParts: !!message.parts,
+        messageKeys: Object.keys(message || {}),
+        messageType: typeof message
+      })
+      console.log('Full message structure:', JSON.stringify(message, null, 2).substring(0, 1000))
       
       // Extract text from the finished message
-      const content = getMessageContent(message).trim()
+      let content = ''
+      
+      // Try different ways to extract content
+      if (message.text) {
+        content = typeof message.text === 'string' ? message.text : String(message.text)
+      } else if (message.content) {
+        if (typeof message.content === 'string') {
+          content = message.content
+        } else if (Array.isArray(message.content)) {
+          content = message.content
+            .filter((part: any) => part.type === 'text' || typeof part === 'string')
+            .map((part: any) => typeof part === 'string' ? part : part.text || '')
+            .join('')
+        }
+      } else if (message.parts && Array.isArray(message.parts)) {
+        console.log('Extracting from parts array, length:', message.parts.length)
+        console.log('Parts structure:', message.parts.map((p: any) => ({ type: p.type, hasText: !!p.text })))
+        content = message.parts
+          .filter((part: any) => {
+            const isText = part.type === 'text' || (typeof part === 'string')
+            console.log('Part:', { type: part.type, isText, hasText: !!part.text, partValue: typeof part === 'string' ? part.substring(0, 50) : part.text?.substring(0, 50) })
+            return isText
+          })
+          .map((part: any) => {
+            if (typeof part === 'string') {
+              return part
+            } else if (part.text) {
+              return part.text
+            } else if (part.content) {
+              return typeof part.content === 'string' ? part.content : ''
+            }
+            return ''
+          })
+          .join('')
+        console.log('Extracted from parts, content length:', content.length)
+      } else if (typeof message === 'string') {
+        content = message
+      } else {
+        // Last resort: try getMessageContent
+        console.warn('Trying getMessageContent as fallback')
+        content = getMessageContent(message)
+      }
+      
+      content = content.trim()
       console.log('Extracted content length:', content.length)
+      console.log('Extracted content preview:', content.substring(0, 200))
       
       if (!content) {
         console.warn('Empty content received from chat')
-        return
+        // Try to get content from messages array if available
+        // Find the last assistant message
+        if (result.messages && Array.isArray(result.messages) && result.messages.length > 0) {
+          for (let i = result.messages.length - 1; i >= 0; i--) {
+            const msg = result.messages[i]
+            if (msg.role === 'assistant') {
+              content = getMessageContent(msg).trim()
+              console.log('Tried messages array (assistant message), content length:', content.length)
+              break
+            }
+          }
+        }
+        
+        if (!content) {
+          console.warn('Could not extract content from onFinish callback')
+          // Try to get from the messages array in result
+          if (result.messages && Array.isArray(result.messages)) {
+            console.log('Trying to extract from result.messages, count:', result.messages.length)
+            for (let i = result.messages.length - 1; i >= 0; i--) {
+              const msg = result.messages[i]
+              console.log(`Message ${i}:`, {
+                role: msg.role,
+                keys: Object.keys(msg || {}),
+                hasText: !!msg.text,
+                hasContent: !!msg.content,
+                hasParts: !!msg.parts
+              })
+              if (msg.role === 'assistant') {
+                const extracted = getMessageContent(msg)
+                if (extracted && extracted.trim()) {
+                  content = extracted.trim()
+                  console.log('Found content in result.messages:', content.length)
+                  break
+                }
+              }
+            }
+          }
+          
+          if (!content) {
+            console.warn('Could not extract content from onFinish callback')
+            return
+          }
+        }
       }
       
-      // Parse paragraphs from current cover letter
-      const currentParagraphs = parseParagraphs(coverLetter)
-      console.log('Current paragraphs count:', currentParagraphs.length)
+      // Intelligente Erkennung: Ist das eine Änderung am Anschreiben oder nur eine Antwort?
+      const isCoverLetterChange = detectCoverLetterChange(content, coverLetter || '')
       
-      // Check if the message looks like a new cover letter (long text without question marks)
-      if (content.length > 200 && !content.includes('?') && !content.toLowerCase().includes('frage')) {
-        console.log('Detected potential full cover letter or paragraph changes')
-        // Try to detect if this is a full cover letter or paragraph-level changes
-        const responseParagraphs = parseParagraphs(content)
-        console.log('Response paragraphs count:', responseParagraphs.length)
-        
-        // If response has similar structure to current cover letter, it might be a full replacement
-        if (responseParagraphs.length >= currentParagraphs.length * 0.8) {
-          console.log('Likely full cover letter replacement')
-          // Likely a full new cover letter - update it
-          if (onCoverLetterUpdate) {
-            onCoverLetterUpdate(content)
-          }
+      console.log('Chat onFinish - decision:', {
+        isCoverLetterChange,
+        hasOnPendingChanges: !!onPendingChanges,
+        hasOnCoverLetterUpdate: !!onCoverLetterUpdate,
+        contentLength: content.length
+      })
+      
+      if (isCoverLetterChange) {
+        console.log('Detected cover letter change - showing diff view')
+        // Neue Version des Anschreibens - für Diff-Anzeige vorbereiten
+        if (onPendingChanges) {
+          console.log('Calling onPendingChanges with:', {
+            newLength: content.length,
+            originalLength: originalCoverLetterRef.current.length
+          })
+          onPendingChanges(content, originalCoverLetterRef.current)
+        } else if (onCoverLetterUpdate) {
+          console.log('Fallback: Calling onCoverLetterUpdate')
+          // Fallback: Direktes Update wenn onPendingChanges nicht verfügbar
+          onCoverLetterUpdate(content)
         } else {
-          console.log('Likely paragraph-level changes, extracting suggestions')
-          // Likely paragraph-level changes - try to extract suggestions
-          extractParagraphSuggestions(content, currentParagraphs, coverLetter)
+          console.warn('No callback available for cover letter update!')
         }
       } else {
-        // Check if it contains paragraph-level suggestions (mentions "Absatz" or similar patterns)
-        const hasAbsatz = content.toLowerCase().includes('absatz') || content.match(/absatz\s+\d+/i)
-        console.log('Contains Absatz mention:', hasAbsatz)
-        
-        if (hasAbsatz) {
-          console.log('Extracting paragraph suggestions from response')
-          extractParagraphSuggestions(content, currentParagraphs, coverLetter)
-        } else {
-          console.log('Response appears to be a question/answer, not a suggestion')
-        }
+        console.log('Response appears to be a question/answer, not a cover letter change')
+        // Nur eine Antwort - keine Änderung am Anschreiben
+        // Die Antwort wird bereits in der Chat-UI angezeigt
       }
     },
   } as any)
@@ -100,54 +207,274 @@ export function CoverLetterChat({
     scrollToBottom()
   }, [messages])
 
+  // Track processed message IDs to avoid duplicate processing
+  const processedMessageIdsRef = useRef<Set<string>>(new Set())
+
+  // Watch for new assistant messages and process them
+  useEffect(() => {
+    if (messages.length === 0) return
+    
+    // Find the last assistant message that hasn't been processed yet
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const message = messages[i] as any
+      if (message.role === 'assistant' && message.id && !processedMessageIdsRef.current.has(message.id)) {
+        // Mark as processed immediately to avoid duplicate processing
+        processedMessageIdsRef.current.add(message.id)
+        
+        const messageContent = getMessageContent(message)
+        console.log('New assistant message detected in messages array:', {
+          id: message.id,
+          role: message.role,
+          contentLength: messageContent.length,
+          contentPreview: messageContent.substring(0, 100),
+          messageKeys: Object.keys(message)
+        })
+        
+        if (messageContent.trim() && messageContent.length > 0) {
+          console.log('Processing message from messages array, content length:', messageContent.length)
+          
+          // Intelligente Erkennung: Ist das eine Änderung am Anschreiben oder nur eine Antwort?
+          const isCoverLetterChange = detectCoverLetterChange(messageContent.trim(), coverLetter || '')
+          
+          console.log('Message processing - decision:', {
+            isCoverLetterChange,
+            hasOnPendingChanges: !!onPendingChanges,
+            hasOnCoverLetterUpdate: !!onCoverLetterUpdate,
+            contentLength: messageContent.length
+          })
+          
+          if (isCoverLetterChange) {
+            console.log('Detected cover letter change from messages array - showing diff view')
+            if (onPendingChanges) {
+              console.log('Calling onPendingChanges with:', {
+                newLength: messageContent.length,
+                originalLength: originalCoverLetterRef.current.length
+              })
+              onPendingChanges(messageContent.trim(), originalCoverLetterRef.current)
+            } else if (onCoverLetterUpdate) {
+              console.log('Fallback: Calling onCoverLetterUpdate')
+              onCoverLetterUpdate(messageContent.trim())
+            }
+          }
+        }
+        break // Only process the most recent unprocessed message
+      }
+    }
+  }, [messages, coverLetter, onPendingChanges, onCoverLetterUpdate])
+
   const isLoading = status === 'submitted' || status === 'streaming'
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!input.trim() || isLoading) return
-
-    console.log('Sending message:', input)
-    console.log('Current status:', status)
-    
-    // Create message object with text property
-    // useChat's sendMessage expects an object with 'text' property
-    const messageToSend: { text: string } = {
-      text: input.trim()
+    if (!input.trim() || isLoading) {
+      console.log('Cannot send message:', { hasInput: !!input.trim(), isLoading })
+      return
     }
-    
-    console.log('Message object to send:', messageToSend)
-    console.log('Message object type:', typeof messageToSend)
-    console.log('Has text property:', 'text' in messageToSend)
+
+    const messageText = input.trim()
+    console.log('Sending message:', messageText)
+    console.log('Current status:', status)
+    console.log('Current cover letter length:', coverLetter.length)
     
     try {
-      // Ensure we're passing an object, not a string
-      if (typeof messageToSend === 'object' && 'text' in messageToSend) {
-        sendMessage(messageToSend)
-        setInput("")
-      } else {
-        console.error('Invalid message format:', messageToSend)
-      }
+      // useChat's sendMessage expects an object with role and content
+      sendMessage({
+        role: 'user',
+        content: messageText
+      } as any)
+      setInput("")
+      console.log('Message sent successfully')
     } catch (error) {
       console.error('Error sending message:', error)
     }
   }
 
   const getMessageContent = (message: any): string => {
+    if (!message) return ''
+    
+    console.log('getMessageContent called with:', {
+      keys: Object.keys(message || {}),
+      hasText: !!message.text,
+      hasContent: !!message.content,
+      hasParts: !!message.parts,
+      partsLength: message.parts?.length || 0
+    })
+    
     // Handle different message structures from AI SDK
     // In the new version, messages have a 'parts' array or direct content
-    if (message.parts && Array.isArray(message.parts)) {
-      return message.parts
-        .filter((part: any) => part.type === 'text')
-        .map((part: any) => part.text)
-        .join('') || ''
-    } else if (message.text) {
-      return message.text
-    } else if (message.content) {
-      return message.content
-    } else if (typeof message === 'string') {
+    
+    // Try text property first
+    if (message.text) {
+      const text = typeof message.text === 'string' ? message.text : String(message.text)
+      if (text.trim()) {
+        console.log('Found content in message.text:', text.length)
+        return text
+      }
+    }
+    
+    // Try content property
+    if (message.content) {
+      if (typeof message.content === 'string') {
+        console.log('Found content in message.content (string):', message.content.length)
+        return message.content
+      } else if (Array.isArray(message.content)) {
+        const extracted = message.content
+          .filter((part: any) => part.type === 'text' || typeof part === 'string')
+          .map((part: any) => typeof part === 'string' ? part : part.text || '')
+          .join('')
+        if (extracted.trim()) {
+          console.log('Found content in message.content (array):', extracted.length)
+          return extracted
+        }
+      }
+    }
+    
+    // Try parts array - but check if it's actually populated
+    if (message.parts && Array.isArray(message.parts) && message.parts.length > 0) {
+      console.log('Processing parts array, length:', message.parts.length)
+      const extracted = message.parts
+        .filter((part: any) => {
+          // Accept text parts or string parts
+          return part.type === 'text' || typeof part === 'string' || part.text
+        })
+        .map((part: any) => {
+          if (typeof part === 'string') {
+            return part
+          } else if (part.text) {
+            return part.text
+          } else if (part.content) {
+            return typeof part.content === 'string' ? part.content : ''
+          }
+          return ''
+        })
+        .join('')
+      if (extracted.trim()) {
+        console.log('Found content in message.parts:', extracted.length)
+        return extracted
+      }
+    }
+    
+    // Try string directly
+    if (typeof message === 'string') {
+      console.log('Message is string:', message.length)
       return message
     }
+    
+    // Last resort: try to find any string property
+    for (const key of Object.keys(message || {})) {
+      const value = message[key]
+      if (typeof value === 'string' && value.trim().length > 10) {
+        console.log(`Found content in message.${key}:`, value.length)
+        return value
+      }
+    }
+    
+    console.warn('Could not extract content from message:', {
+      keys: Object.keys(message || {}),
+      message: JSON.stringify(message).substring(0, 200)
+    })
     return ''
+  }
+
+  /**
+   * Erkennt intelligently, ob die Antwort ein neues Anschreiben ist oder nur eine Antwort
+   */
+  const detectCoverLetterChange = (responseText: string, currentCoverLetter: string): boolean => {
+    console.log('detectCoverLetterChange called:', {
+      responseLength: responseText.length,
+      currentLength: currentCoverLetter.length,
+      responsePreview: responseText.substring(0, 100)
+    })
+
+    // 1. Länge-Check: Anschreiben sind normalerweise > 200 Zeichen
+    if (responseText.length < 200) {
+      console.log('Response too short, not a cover letter')
+      return false
+    }
+
+    // 2. Fragezeichen-Check: Antworten enthalten oft Fragezeichen, Anschreiben nicht
+    // Aber lockern: Nur wenn es MEHRERE Fragezeichen gibt (3+), ist es wahrscheinlich eine Antwort
+    const questionMarkCount = (responseText.match(/\?/g) || []).length
+    if (questionMarkCount >= 3) {
+      console.log('Too many question marks, likely an answer:', questionMarkCount)
+      return false
+    }
+
+    // 3. Struktur-Check: Anschreiben haben ähnliche Absatz-Struktur
+    const currentParagraphs = parseParagraphs(currentCoverLetter)
+    const responseParagraphs = parseParagraphs(responseText)
+    
+    console.log('Paragraph comparison:', {
+      current: currentParagraphs.length,
+      response: responseParagraphs.length,
+      ratio: responseParagraphs.length / Math.max(currentParagraphs.length, 1)
+    })
+    
+    // Wenn die Antwort ähnlich viele Absätze hat wie das aktuelle Anschreiben, ist es wahrscheinlich ein neues Anschreiben
+    if (currentParagraphs.length > 0 && responseParagraphs.length >= currentParagraphs.length * 0.6) {
+      console.log('Similar paragraph structure detected, likely cover letter')
+      return true
+    }
+
+    // 4. Inhalt-Check: Prüfe ob typische Anschreiben-Phrasen enthalten sind
+    const coverLetterIndicators = [
+      'sehr geehrte',
+      'mit freundlichen grüßen',
+      'bewerbung',
+      'ich bewerbe mich',
+      'ihr anschreiben',
+      'mit freundlichen',
+      'grüße',
+    ]
+    
+    const lowerResponse = responseText.toLowerCase()
+    const hasCoverLetterIndicators = coverLetterIndicators.some(indicator => 
+      lowerResponse.includes(indicator)
+    )
+
+    console.log('Cover letter indicators found:', hasCoverLetterIndicators)
+
+    // 5. Ähnlichkeits-Check: Wenn der Text sehr ähnlich zum aktuellen Anschreiben ist, könnte es eine Änderung sein
+    const similarity = calculateSimilarity(
+      currentCoverLetter.substring(0, 500),
+      responseText.substring(0, 500)
+    )
+
+    console.log('Similarity score:', similarity)
+
+    // Entscheidung: Wenn es Indikatoren gibt ODER hohe Ähnlichkeit (>20%), ist es wahrscheinlich eine Änderung
+    const isChange = hasCoverLetterIndicators || similarity > 0.2
+    console.log('Final decision - is cover letter change:', isChange)
+    
+    return isChange
+  }
+
+  /**
+   * Berechnet einfache Text-Ähnlichkeit (0-1)
+   */
+  const calculateSimilarity = (text1: string, text2: string): number => {
+    if (!text1 || !text2) return 0
+    
+    const words1 = text1.toLowerCase().split(/\s+/)
+    const words2 = text2.toLowerCase().split(/\s+/)
+    
+    const set1 = new Set(words1)
+    const set2 = new Set(words2)
+    
+    // Calculate intersection
+    let intersectionSize = 0
+    set1.forEach(word => {
+      if (set2.has(word)) {
+        intersectionSize++
+      }
+    })
+    
+    // Calculate union
+    const union = new Set<string>()
+    words1.forEach(word => union.add(word))
+    words2.forEach(word => union.add(word))
+    
+    return intersectionSize / union.size
   }
 
   const extractParagraphSuggestions = (

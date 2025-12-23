@@ -94,7 +94,7 @@ steps:
       - '--max-instances'
       - '10'
       - '--set-env-vars'
-      - 'GOOGLE_GENERATIVE_AI_API_KEY=${_GOOGLE_GENERATIVE_AI_API_KEY}'
+      - 'GOOGLE_GENERATIVE_AI_API_KEY=${_GOOGLE_GENERATIVE_AI_API_KEY},GCS_BUCKET_NAME=411832844870-anschreiben-data'
     id: 'deploy'
     waitFor: ['pre-deploy-backup']
   

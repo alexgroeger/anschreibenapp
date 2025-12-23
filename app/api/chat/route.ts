@@ -116,13 +116,20 @@ ${extraction ? `- Extraktionsdaten: ${JSON.stringify(extraction).substring(0, 50
 - Gib konstruktives Feedback
 - Vorschläge für Verbesserungen
 
-**Wichtig für Änderungen:**
-- Wenn der Nutzer Änderungen an spezifischen Absätzen wünscht, gib nur die geänderten Absätze zurück
-- Absätze werden durch doppelte Zeilenschaltung (\\n\\n) getrennt
-- Wenn du das gesamte Anschreiben änderst, gib das vollständige überarbeitete Anschreiben zurück
-- Wenn du nur einzelne Absätze änderst, gib diese Absätze mit Kontext zurück (z.B. "Absatz 2: [neuer Text]")
-- Wenn du das Anschreiben änderst, gib NUR das neue/geänderte Anschreiben zurück, ohne zusätzliche Erklärungen (außer der Nutzer fragt explizit danach)
-- Antworte auf Deutsch${favoriteFormulationsSection}${excludedFormulationsSection}`;
+**WICHTIG - Änderungen am Anschreiben:**
+Wenn der Nutzer eine Änderung am Anschreiben wünscht (z.B. "Mache den Ton formeller", "Kürze den ersten Absatz", "Hervorhebe mehr meine Erfahrung"), dann:
+1. Gib IMMER das VOLLSTÄNDIGE überarbeitete Anschreiben zurück
+2. Beginne direkt mit dem Anschreiben, ohne zusätzliche Erklärungen
+3. Absätze werden durch doppelte Zeilenschaltung (\\n\\n) getrennt
+4. Das Anschreiben sollte die gleiche Struktur wie das Original haben
+5. NUR wenn der Nutzer explizit eine Frage stellt (z.B. "Wie kann ich...?", "Was bedeutet...?"), gib eine Antwort statt eines neuen Anschreibens
+
+**Beispiele:**
+- Nutzer: "Mache den Ton formeller" → Gib das vollständige neue Anschreiben zurück
+- Nutzer: "Wie kann ich die Motivation stärker betonen?" → Gib eine Antwort mit Tipps
+- Nutzer: "Kürze den ersten Absatz" → Gib das vollständige neue Anschreiben mit gekürztem ersten Absatz zurück
+
+Antworte auf Deutsch${favoriteFormulationsSection}${excludedFormulationsSection}`;
 
       // Log raw messages for debugging
       console.log('Raw messages received:', JSON.stringify(messages, null, 2));

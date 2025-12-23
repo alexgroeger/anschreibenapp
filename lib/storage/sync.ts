@@ -80,8 +80,34 @@ export async function downloadDatabaseFromCloud(): Promise<boolean> {
 
     // Download the database file
     console.log('Downloading database from Cloud Storage...');
-    await file.download({ destination: dbPath });
-    console.log('Database downloaded successfully from Cloud Storage');
+    
+    // Download to temporary file first to avoid corruption
+    const tempPath = `${dbPath}.tmp`;
+    await file.download({ destination: tempPath });
+    
+    // Verify database integrity before replacing
+    try {
+      const Database = require('better-sqlite3');
+      const testDb = new Database(tempPath);
+      // Try to read from database to verify it's not corrupted
+      testDb.prepare('SELECT COUNT(*) FROM sqlite_master').get();
+      testDb.close();
+      
+      // If we get here, database is valid - replace the old one
+      const fs = require('fs');
+      if (existsSync(dbPath)) {
+        fs.renameSync(dbPath, `${dbPath}.backup`);
+      }
+      fs.renameSync(tempPath, dbPath);
+      console.log('Database downloaded successfully from Cloud Storage');
+    } catch (dbError: any) {
+      console.error('Downloaded database is corrupted, keeping local version:', dbError.message);
+      const fs = require('fs');
+      if (existsSync(tempPath)) {
+        fs.unlinkSync(tempPath);
+      }
+      return false;
+    }
 
     // Also download backup if it exists
     const backupFile = bucket.file(DB_BACKUP_FILE_NAME);
@@ -134,6 +160,17 @@ export async function uploadDatabaseToCloud(): Promise<boolean> {
     
     // Upload the database file
     console.log('Uploading database to Cloud Storage...');
+    
+    // Verify database integrity before uploading
+    try {
+      const db = getDatabase();
+      // Try to read from database to verify it's not corrupted
+      db.prepare('SELECT COUNT(*) FROM sqlite_master').get();
+    } catch (dbError: any) {
+      console.error('Local database is corrupted, cannot upload:', dbError.message);
+      return false;
+    }
+    
     await file.save(readFileSync(dbPath), {
       metadata: {
         contentType: 'application/x-sqlite3',
@@ -179,7 +216,10 @@ export async function syncDatabaseOnStartup(): Promise<void> {
     if (cloudExists && !localExists) {
       // Cloud has database, local doesn't - download
       console.log('Local database not found, downloading from Cloud Storage...');
-      await downloadDatabaseFromCloud();
+      const downloaded = await downloadDatabaseFromCloud();
+      if (!downloaded) {
+        console.warn('Failed to download database from cloud, will create new one');
+      }
     } else if (cloudExists && localExists) {
       // Both exist - use cloud version if it's newer
       const [metadata] = await file.getMetadata();
@@ -189,9 +229,15 @@ export async function syncDatabaseOnStartup(): Promise<void> {
 
       if (cloudModified > localModified) {
         console.log('Cloud database is newer, downloading...');
-        await downloadDatabaseFromCloud();
+        const downloaded = await downloadDatabaseFromCloud();
+        if (!downloaded) {
+          console.warn('Failed to download newer database from cloud, keeping local version');
+        }
       } else {
         console.log('Local database is newer or same, keeping local version');
+        // Upload local version to ensure cloud is up to date
+        console.log('Uploading local database to ensure cloud is synchronized...');
+        await uploadDatabaseToCloud();
       }
     } else if (!cloudExists && localExists) {
       // Local exists, cloud doesn't - upload

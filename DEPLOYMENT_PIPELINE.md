@@ -9,9 +9,10 @@ Die Pipeline führt automatisch End-to-End-Tests vor dem Deployment aus und bloc
 1. **Pre-Deployment Checks**: Code-Qualität (Linting, TypeScript)
 2. **E2E Tests**: Automatische Tests gegen die aktuelle Production-URL
 3. **Build**: Docker Image erstellen (nur bei erfolgreichen Tests)
-4. **Pre-Deploy Backup**: Datenbank-Backup erstellen
-5. **Deploy**: Deployment zu Cloud Run
+4. **Pre-Deploy Backup**: Datenbank-Backup zu Cloud Storage erstellen
+5. **Deploy**: Deployment zu Cloud Run (mit GCS_BUCKET_NAME Environment-Variable)
 6. **Post-Deploy Verification**: Smoke Tests nach dem Deployment
+7. **Cloud Storage Sync**: Automatische Synchronisation beim Container-Start
 
 ## Pipeline-Flow
 
@@ -24,12 +25,14 @@ Build Docker Image
   ↓
 Push Image to Registry
   ↓
-Database Backup
+Database Backup (zu Cloud Storage)
   ↓
-Deploy to Cloud Run
+Deploy to Cloud Run (mit GCS_BUCKET_NAME)
   ↓
 Post-Deploy Smoke Tests
   ↓ (bei Fehler: Warnung, aber Deployment bleibt)
+Cloud Storage Sync Verification
+  ↓
 Erfolgreich
 ```
 
@@ -62,6 +65,8 @@ gcloud builds submit \
   --substitutions=_GOOGLE_GENERATIVE_AI_API_KEY=your-api-key
 ```
 
+**Hinweis**: Die Pipeline setzt automatisch `GCS_BUCKET_NAME=411832844870-anschreiben-data` als Environment-Variable (verwendet Projektnummer, nicht Projekt-ID). Stellen Sie sicher, dass der Cloud Storage Bucket existiert (siehe Cloud Storage Setup).
+
 ### Option 2: GitHub Actions
 
 1. Öffnen Sie das GitHub Repository
@@ -73,6 +78,7 @@ gcloud builds submit \
 **Voraussetzungen:**
 - GitHub Secret `GCP_SA_KEY`: Service Account Key für Google Cloud
 - GitHub Secret `GOOGLE_GENERATIVE_AI_API_KEY`: Google Gemini API Key
+- **Cloud Storage Bucket**: Muss vor dem ersten Deployment erstellt werden (siehe Cloud Storage Setup)
 
 ## Test-Suites
 
@@ -93,6 +99,38 @@ Nach dem Deployment werden kurze Smoke Tests ausgeführt:
 1. **post-deploy.spec.ts**: Basis-Funktionalität nach Deployment
 2. Health Checks für kritische API-Endpunkte
 3. Console-Error-Checks
+
+## Voraussetzungen: Cloud Storage Setup
+
+**Wichtig**: Vor dem ersten Deployment muss Cloud Storage konfiguriert werden:
+
+1. **Cloud Storage Bucket erstellen**:
+   ```bash
+   # Projekt-ID setzen
+   export PROJECT_ID="gen-lang-client-0764998759"
+   export PROJECT_NUMBER="411832844870"
+   gcloud config set project $PROJECT_ID
+   
+   # Bucket erstellen
+   gcloud storage buckets create gs://$PROJECT_NUMBER-anschreiben-data \
+     --location=europe-west1 \
+     --project=$PROJECT_ID
+   ```
+
+2. **Service Account Berechtigungen prüfen**:
+   ```bash
+   # Berechtigungen werden automatisch gesetzt, aber prüfen Sie:
+   gcloud projects get-iam-policy $PROJECT_ID \
+     --flatten="bindings[].members" \
+     --filter="bindings.members:serviceAccount:$PROJECT_NUMBER-compute@developer.gserviceaccount.com"
+   ```
+
+3. **Automatisches Setup (empfohlen)**:
+   ```bash
+   ./scripts/fix-cloud-storage.sh
+   ```
+
+Die Pipeline setzt automatisch `GCS_BUCKET_NAME=${PROJECT_ID}-anschreiben-data` beim Deployment. Der tatsächliche Bucket-Name verwendet die Projekt-Nummer: `${PROJECT_NUMBER}-anschreiben-data`.
 
 ## Test-Konfiguration
 
@@ -160,6 +198,21 @@ gcloud run services update-traffic anschreiben-app \
   --region=europe-west1
 ```
 
+### Cloud Storage Rollback:
+
+Falls die Datenbank nach dem Deployment beschädigt ist:
+
+```bash
+# 1. Prüfen Sie die Datenbank-Integrität
+./scripts/fix-corrupted-database.sh
+
+# 2. Manuell von Cloud Storage herunterladen (falls nötig)
+curl -X POST "https://anschreiben-app-411832844870.europe-west1.run.app/api/admin/database/sync?action=download"
+
+# 3. Backup wiederherstellen (falls verfügbar)
+# Das Backup wird automatisch in Cloud Storage gespeichert: anschreiben_backup.db
+```
+
 ## Monitoring
 
 ### Cloud Build Logs
@@ -195,12 +248,101 @@ Test-Reports und Screenshots werden in Cloud Storage gespeichert:
 - Prüfen Sie Cloud Build Quotas
 - Erhöhen Sie `timeout` in `cloudbuild.yaml`
 
+### Cloud Storage Probleme
+
+**Problem: "Cloud Storage not configured"**
+
+- Prüfen Sie, ob `GCS_BUCKET_NAME` in Cloud Run gesetzt ist:
+  ```bash
+  gcloud run services describe anschreiben-app \
+    --region=europe-west1 \
+    --format='value(spec.template.spec.containers[0].env)'
+  ```
+
+- Falls nicht gesetzt, führen Sie aus:
+  ```bash
+  ./scripts/fix-cloud-storage.sh
+  ```
+
+**Problem: "database disk image is malformed"**
+
+- Die Datenbank wurde beim Download beschädigt
+- Führen Sie das Reparatur-Script aus:
+  ```bash
+  ./scripts/fix-corrupted-database.sh
+  ```
+
+- Oder manuell von Cloud Storage herunterladen:
+  ```bash
+  curl -X POST "https://anschreiben-app-411832844870.europe-west1.run.app/api/admin/database/sync?action=download"
+  ```
+
+**Problem: Daten gehen nach Deployment verloren**
+
+- Prüfen Sie, ob Cloud Storage Synchronisation aktiv ist:
+  ```bash
+  curl "https://anschreiben-app-411832844870.europe-west1.run.app/api/admin/database/sync"
+  ```
+
+- Prüfen Sie die Logs auf Synchronisations-Fehler:
+  ```bash
+  gcloud run services logs read anschreiben-app \
+    --region=europe-west1 \
+    --filter="textPayload=~'sync|upload|download'"
+  ```
+
 ## Best Practices
 
 1. **Vor jedem Deployment**: Tests lokal ausführen
 2. **Bei Fehlern**: Logs prüfen und Probleme beheben
 3. **Regelmäßig**: Test-Suites aktualisieren bei neuen Features
 4. **Monitoring**: Cloud Build Notifications aktivieren
+5. **Cloud Storage**: Prüfen Sie regelmäßig die Datenbank-Synchronisation über `/admin/database`
+6. **Backups**: Cloud Storage erstellt automatisch Backups bei jedem Upload
+7. **Datenbank-Integrität**: Bei Problemen das Reparatur-Script ausführen
+
+## Datenbank-Synchronisation
+
+### Automatische Synchronisation
+
+Die Pipeline konfiguriert automatisch Cloud Storage Synchronisation:
+
+1. **Beim Container-Start**: 
+   - Lädt die neueste Datenbank von Cloud Storage
+   - Falls Cloud neuer ist, wird sie heruntergeladen
+   - Falls lokal neuer ist, wird sie hochgeladen
+
+2. **Nach Schreiboperationen**:
+   - Automatischer Upload nach CREATE/UPDATE/DELETE
+   - Integritätsprüfung vor dem Upload
+   - Automatisches Backup-Erstellen
+
+3. **Environment-Variablen**:
+   - `GCS_BUCKET_NAME`: Wird automatisch von der Pipeline gesetzt
+   - Format: `${PROJECT_NUMBER}-anschreiben-data` (verwendet Projektnummer, nicht Projekt-ID)
+   - Aktueller Wert: `411832844870-anschreiben-data`
+   - **Wichtig**: Der Bucket-Name ist in `cloudbuild.yaml` hardcodiert. Bei Projektwechsel muss dieser angepasst werden.
+
+### Manuelle Synchronisation
+
+Nach dem Deployment können Sie die Synchronisation manuell prüfen:
+
+```bash
+# Status prüfen
+curl "https://anschreiben-app-411832844870.europe-west1.run.app/api/admin/database/sync"
+
+# Manuell hochladen
+curl -X POST "https://anschreiben-app-411832844870.europe-west1.run.app/api/admin/database/sync?action=upload"
+
+# Manuell herunterladen
+curl -X POST "https://anschreiben-app-411832844870.europe-west1.run.app/api/admin/database/sync?action=download"
+```
+
+### Backup-Strategie
+
+- **Automatisches Backup**: Bei jedem Upload wird `anschreiben_backup.db` erstellt
+- **Pre-Deployment Backup**: Pipeline erstellt Backup vor jedem Deployment
+- **Cloud Storage Versionierung**: Optional aktivierbar für zusätzliche Sicherheit
 
 ## Nächste Schritte
 
@@ -209,6 +351,9 @@ Test-Reports und Screenshots werden in Cloud Storage gespeichert:
 - [ ] Erweiterte Test-Coverage für kritische Features
 - [ ] Performance-Tests hinzufügen
 - [ ] Test-Ergebnisse in externe Tools integrieren
+- [x] Cloud Storage Integration für persistente Datenbank
+- [x] Automatische Datenbank-Synchronisation
+- [x] Integritätsprüfung für Datenbank-Uploads/Downloads
 
 ## Support
 

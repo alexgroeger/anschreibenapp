@@ -38,13 +38,22 @@ export function getDatabase(): Database.Database {
 /**
  * Sync database to Cloud Storage after write operations
  * This should be called after important write operations
- * Runs asynchronously to not block the request
+ * Waits for the upload to complete before returning
  */
 export async function syncDatabaseAfterWrite(): Promise<void> {
-  // Run upload asynchronously without blocking
-  uploadDatabaseToCloud().catch((error) => {
+  try {
+    console.log('Starting database sync to Cloud Storage...');
+    const success = await uploadDatabaseToCloud();
+    if (success) {
+      console.log('Database sync to Cloud Storage completed successfully');
+    } else {
+      console.warn('Database sync to Cloud Storage returned false (may not be configured or failed)');
+    }
+  } catch (error) {
     console.error('Error syncing database to cloud:', error);
-  });
+    // Don't throw - we don't want to fail the request if sync fails
+    // The data is still saved locally
+  }
 }
 
 /**
