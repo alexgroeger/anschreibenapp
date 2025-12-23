@@ -1,0 +1,22 @@
+<svg width="200" height="60" viewBox="0 0 200 60" xmlns="http://www.w3.org/2000/svg">
+  <!-- Modernes kombiniertes Design -->
+  <g>
+    <!-- Brief mit Gewicht integriert -->
+    <rect x="8" y="8" width="36" height="44" rx="3" fill="#3b82f6" opacity="0.1" stroke="#3b82f6" stroke-width="2"/>
+    <rect x="12" y="12" width="28" height="32" rx="2" fill="#ffffff"/>
+    <line x1="18" y1="20" x2="34" y2="20" stroke="#3b82f6" stroke-width="1.5" stroke-linecap="round"/>
+    <line x1="18" y1="26" x2="34" y2="26" stroke="#3b82f6" stroke-width="1.5" stroke-linecap="round"/>
+    
+    <!-- Gewicht als Akzent -->
+    <rect x="32" y="28" width="8" height="8" rx="1" fill="#ef4444"/>
+    <line x1="36" y1="28" x2="36" y2="24" stroke="#ef4444" stroke-width="2" stroke-linecap="round"/>
+    <line x1="36" y1="36" x2="36" y2="40" stroke="#ef4444" stroke-width="2" stroke-linecap="round"/>
+    <circle cx="36" cy="24" r="2" fill="#ef4444"/>
+    <circle cx="36" cy="40" r="2" fill="#ef4444"/>
+  </g>
+  
+  <!-- Text -->
+  <text x="52" y="30" font-family="Arial, sans-serif" font-size="19" font-weight="bold" fill="#1f2937">Anschreiben</text>
+  <text x="52" y="47" font-family="Arial, sans-serif" font-size="19" font-weight="bold" fill="#ef4444">Muckibude</text>
+</svg>
+

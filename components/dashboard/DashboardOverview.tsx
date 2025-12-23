@@ -25,7 +25,8 @@ import {
   TrendingUp,
   FileText,
   AlertTriangle,
-  ExternalLink
+  ExternalLink,
+  Search
 } from "lucide-react"
 import { ReminderOverview } from "@/components/reminders/ReminderOverview"
 
@@ -348,6 +349,12 @@ export function DashboardOverview() {
           </p>
         </div>
         <div className="flex gap-2">
+          <Link href="/documents/search">
+            <Button variant="outline" size="sm">
+              <Search className="h-4 w-4 mr-2" />
+              Dokumentensuche
+            </Button>
+          </Link>
           <Button variant="outline" size="sm" onClick={loadData} disabled={loading}>
             <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
             Aktualisieren

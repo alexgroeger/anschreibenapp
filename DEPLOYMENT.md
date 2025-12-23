@@ -1,6 +1,6 @@
 # Deployment Guide: Google Cloud Run
 
-Diese Anleitung führt Sie durch das Deployment der Anschreiben App auf Google Cloud Run.
+Diese Anleitung führt Sie durch das Deployment der Anschreiben Muckibude auf Google Cloud Run.
 
 ## Übersicht
 

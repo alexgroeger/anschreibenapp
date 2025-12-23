@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Google Cloud Run Deployment Script
-# This script helps deploy the Anschreiben App to Google Cloud Run
+# This script helps deploy the Anschreiben Muckibude to Google Cloud Run
 
 set -e
 

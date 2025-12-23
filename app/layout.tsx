@@ -3,7 +3,7 @@ import './globals.css'
 import { Navigation } from '@/components/Navigation'
 
 export const metadata: Metadata = {
-  title: 'AI Cover Letter Architect',
+  title: 'Anschreiben Muckibude',
   description: 'Eine Web-App, die Bewerbungsschreiben basierend auf Jobanzeigen und dem Nutzer-Lebenslauf mittels KI erstellt.',
 }
 

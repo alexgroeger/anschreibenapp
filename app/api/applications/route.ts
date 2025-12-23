@@ -2,11 +2,18 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, getCachedStatement, syncDatabaseAfterWrite } from '@/lib/database/client';
 import { syncDeadlineReminder } from '@/lib/reminders/deadline-sync';
 
+// Route segment config - force dynamic for real-time data
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status');
     const company = searchParams.get('company');
+    const position = searchParams.get('position');
+    const sentAtFrom = searchParams.get('sent_at_from');
+    const sentAtTo = searchParams.get('sent_at_to');
     const limit = parseInt(searchParams.get('limit') || '50');
     const offset = parseInt(searchParams.get('offset') || '0');
     const page = parseInt(searchParams.get('page') || '1');
@@ -25,6 +32,21 @@ export async function GET(request: NextRequest) {
     if (company) {
       whereConditions.push('a.company LIKE ?');
       params.push(`%${company}%`);
+    }
+    
+    if (position) {
+      whereConditions.push('a.position LIKE ?');
+      params.push(`%${position}%`);
+    }
+    
+    if (sentAtFrom) {
+      whereConditions.push("DATE(a.sent_at) >= DATE(?)");
+      params.push(sentAtFrom);
+    }
+    
+    if (sentAtTo) {
+      whereConditions.push("DATE(a.sent_at) <= DATE(?)");
+      params.push(sentAtTo);
     }
     
     const whereClause = whereConditions.length > 0 
@@ -48,7 +70,16 @@ export async function GET(request: NextRequest) {
         a.deadline
       FROM applications a
       ${whereClause}
-      ORDER BY a.created_at DESC
+      ORDER BY 
+        CASE a.status
+          WHEN 'in_bearbeitung' THEN 1
+          WHEN 'rueckmeldung_ausstehend' THEN 2
+          WHEN 'gesendet' THEN 3
+          WHEN 'angenommen' THEN 4
+          WHEN 'abgelehnt' THEN 5
+          ELSE 6
+        END,
+        a.created_at DESC
       LIMIT ? OFFSET ?
     `;
     
@@ -107,7 +138,7 @@ export async function GET(request: NextRequest) {
     const totalResult = getCachedStatement(countQuery).get(...countParams) as { total: number };
     const total = totalResult.total;
     
-    return NextResponse.json({ 
+    const response = NextResponse.json({ 
       applications: applicationsWithContacts,
       pagination: {
         total,
@@ -117,6 +148,11 @@ export async function GET(request: NextRequest) {
         totalPages: Math.ceil(total / limit)
       }
     }, { status: 200 });
+    
+    // Cache-Control header - no cache for filtered/paginated results
+    response.headers.set('Cache-Control', 'private, no-cache, no-store, must-revalidate');
+    
+    return response;
   } catch (error) {
     console.error('Error fetching applications:', error);
     return NextResponse.json(

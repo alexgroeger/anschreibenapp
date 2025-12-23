@@ -4,7 +4,7 @@ Analysiere die Jobbeschreibung und extrahiere:
 
 1. **Unternehmen**: Der Name des Unternehmens, das die Stelle ausschreibt (falls erwähnt)
 2. **Position**: Der genaue Titel der ausgeschriebenen Position/Stelle (z.B. "Software Engineer", "Product Manager", "Marketing Manager")
-3. **Key Requirements**: Die wichtigsten Anforderungen (Hard Skills, Qualifikationen, Erfahrungen)
+3. **Key Requirements**: Sammel alle Anforderungen und stelle diese ausführlich dar. Versuche keine wichtigen Informationen zu vergessen (Hard Skills, Qualifikationen, Erfahrungen) die für die Stelle benötigt werden (meist zu finden unter "Das bringst du mit" oder "deine Verantwortungen" oder "Dein Profil" oder "Deine Aufgaben")
 4. **Unternehmenskultur**: Werte, Arbeitsweise, Team-Dynamik, die aus der Beschreibung hervorgehen
 5. **Hard Skills**: Technische Fähigkeiten und Tools, die explizit erwähnt werden
 6. **Soft Skills**: Persönliche Fähigkeiten, soziale Kompetenzen und Charaktereigenschaften (z.B. Teamfähigkeit, Kommunikationsfähigkeit, Problemlösungsfähigkeit, Eigeninitiative)

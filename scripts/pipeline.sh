@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Pipeline Management Script für Anschreiben App
+# Pipeline Management Script für Anschreiben Muckibude
 # Vereinfacht die Verwaltung von Deployment-Pipelines
 
 set -e

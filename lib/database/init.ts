@@ -130,6 +130,23 @@ export function initDatabase(): Database.Database {
       completed_at DATETIME,
       FOREIGN KEY (application_id) REFERENCES applications(id) ON DELETE CASCADE
     );
+
+    CREATE TABLE IF NOT EXISTS application_documents (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      application_id INTEGER NOT NULL,
+      filename TEXT NOT NULL,
+      file_path TEXT NOT NULL,
+      file_type TEXT,
+      file_size INTEGER,
+      uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (application_id) REFERENCES applications(id) ON DELETE CASCADE
+    );
+
+    CREATE VIRTUAL TABLE IF NOT EXISTS application_documents_fts USING fts5(
+      document_id UNINDEXED,
+      content
+    );
   `);
   
     // Add match_result column to applications table if it doesn't exist
@@ -167,6 +184,42 @@ export function initDatabase(): Database.Database {
       if (!hasJobDocumentType) {
         db.exec(`ALTER TABLE applications ADD COLUMN job_document_type TEXT;`);
       }
+
+      // Check if application_documents table exists
+      const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='application_documents'").all() as any[];
+      const hasApplicationDocuments = tables.length > 0;
+      if (!hasApplicationDocuments) {
+        db.exec(`
+          CREATE TABLE application_documents (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            application_id INTEGER NOT NULL,
+            filename TEXT NOT NULL,
+            file_path TEXT NOT NULL,
+            file_type TEXT,
+            file_size INTEGER,
+            uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (application_id) REFERENCES applications(id) ON DELETE CASCADE
+          );
+        `);
+      }
+
+      // Check if FTS5 table exists
+      const ftsTables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='application_documents_fts'").all() as any[];
+      const hasFtsTable = ftsTables.length > 0;
+      if (!hasFtsTable) {
+        try {
+          db.exec(`
+            CREATE VIRTUAL TABLE application_documents_fts USING fts5(
+              document_id UNINDEXED,
+              content
+            );
+          `);
+        } catch (ftsError: any) {
+          // FTS5 might not be available, log but don't fail
+          console.warn('Could not create FTS5 table:', ftsError.message);
+        }
+      }
     } catch (error) {
       // Column might already exist, ignore error
       console.log('Column check:', error);
@@ -182,6 +235,9 @@ export function initDatabase(): Database.Database {
     { key: 'temperature_tone', value: '0.3', category: 'ai', description: 'Temperature für Tonalitäts-Analyse' },
     { key: 'default_tone', value: 'professionell', category: 'generation', description: 'Standard-Tonalität' },
     { key: 'default_focus', value: 'skills', category: 'generation', description: 'Standard-Fokus' },
+    { key: 'default_text_length', value: 'mittel', category: 'generation', description: 'Standard-Textlänge' },
+    { key: 'default_formality', value: 'formal', category: 'generation', description: 'Standard-Formalität' },
+    { key: 'default_emphasis', value: 'kombiniert', category: 'generation', description: 'Standard-Betonung' },
     { key: 'cover_letter_min_words', value: '300', category: 'generation', description: 'Minimale Anschreiben-Länge (Wörter)' },
     { key: 'cover_letter_max_words', value: '400', category: 'generation', description: 'Maximale Anschreiben-Länge (Wörter)' },
     { key: 'excluded_formulations', value: '', category: 'generation', description: 'Ausgeschlossene Formulierungen (eine pro Zeile)' },
@@ -199,18 +255,54 @@ export function initDatabase(): Database.Database {
   
   // Create indexes for performance optimization
   db.exec(`
+    -- Applications table indexes
     CREATE INDEX IF NOT EXISTS idx_applications_status ON applications(status);
     CREATE INDEX IF NOT EXISTS idx_applications_created_at ON applications(created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_applications_sent_at ON applications(sent_at);
+    CREATE INDEX IF NOT EXISTS idx_applications_deadline ON applications(deadline);
+    CREATE INDEX IF NOT EXISTS idx_applications_company ON applications(company);
+    CREATE INDEX IF NOT EXISTS idx_applications_position ON applications(position);
+    CREATE INDEX IF NOT EXISTS idx_applications_status_created_at ON applications(status, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_applications_sent_at_null ON applications(sent_at) WHERE sent_at IS NULL;
+    CREATE INDEX IF NOT EXISTS idx_applications_deadline_asc ON applications(deadline ASC) WHERE deadline IS NOT NULL;
+    
+    -- Contact persons indexes
     CREATE INDEX IF NOT EXISTS idx_contact_persons_application_id ON contact_persons(application_id);
+    CREATE INDEX IF NOT EXISTS idx_contact_persons_name ON contact_persons(name);
+    
+    -- Old cover letters indexes
     CREATE INDEX IF NOT EXISTS idx_old_cover_letters_uploaded_at ON old_cover_letters(uploaded_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_old_cover_letters_company ON old_cover_letters(company);
+    
+    -- Cover letter versions indexes
     CREATE INDEX IF NOT EXISTS idx_cover_letter_versions_application_id ON cover_letter_versions(application_id);
     CREATE INDEX IF NOT EXISTS idx_cover_letter_versions_created_at ON cover_letter_versions(created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_cover_letter_versions_application_created ON cover_letter_versions(application_id, created_at DESC);
+    
+    -- Cover letter suggestions indexes
     CREATE INDEX IF NOT EXISTS idx_cover_letter_suggestions_application_id ON cover_letter_suggestions(application_id);
     CREATE INDEX IF NOT EXISTS idx_cover_letter_suggestions_status ON cover_letter_suggestions(status);
+    CREATE INDEX IF NOT EXISTS idx_cover_letter_suggestions_version_id ON cover_letter_suggestions(version_id);
+    
+    -- Reminders indexes
     CREATE INDEX IF NOT EXISTS idx_reminders_application_id ON reminders(application_id);
     CREATE INDEX IF NOT EXISTS idx_reminders_due_date ON reminders(due_date);
     CREATE INDEX IF NOT EXISTS idx_reminders_status ON reminders(status);
     CREATE INDEX IF NOT EXISTS idx_reminders_next_occurrence ON reminders(next_occurrence);
+    CREATE INDEX IF NOT EXISTS idx_reminders_status_due_date ON reminders(status, due_date);
+    CREATE INDEX IF NOT EXISTS idx_reminders_pending_next_occurrence ON reminders(next_occurrence) WHERE status = 'pending' AND next_occurrence IS NOT NULL;
+    
+    -- Application documents indexes
+    CREATE INDEX IF NOT EXISTS idx_application_documents_application_id ON application_documents(application_id);
+    CREATE INDEX IF NOT EXISTS idx_application_documents_uploaded_at ON application_documents(uploaded_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_application_documents_file_type ON application_documents(file_type);
+    
+    -- Resume indexes
+    CREATE INDEX IF NOT EXISTS idx_resume_updated_at ON resume(updated_at DESC);
+    
+    -- Settings indexes (for faster lookups)
+    CREATE INDEX IF NOT EXISTS idx_settings_key ON settings(key);
+    CREATE INDEX IF NOT EXISTS idx_settings_category ON settings(category);
   `);
   
   return db;

@@ -38,7 +38,7 @@ function getStorage(): Storage | null {
 /**
  * Get or create the Cloud Storage bucket
  */
-function getBucket(): any | null {
+export function getBucket(): any | null {
   const storage = getStorage();
   if (!storage) {
     return null;
@@ -229,13 +229,15 @@ export async function uploadFileToCloud(
     try {
       const fs = require('fs');
       const path = require('path');
+      // Handle nested paths (e.g., "application-documents/123/file.pdf")
       const uploadsDir = join(process.cwd(), 'data', 'uploads');
+      const fullPath = join(uploadsDir, fileName);
+      const fileDir = path.dirname(fullPath);
       
-      if (!existsSync(uploadsDir)) {
-        fs.mkdirSync(uploadsDir, { recursive: true });
+      if (!existsSync(fileDir)) {
+        fs.mkdirSync(fileDir, { recursive: true });
       }
       
-      const filePath = join(uploadsDir, fileName);
       let buffer: Buffer;
       if (file instanceof Buffer) {
         buffer = file;
@@ -245,9 +247,9 @@ export async function uploadFileToCloud(
       } else {
         throw new Error('Unsupported file type');
       }
-      writeFileSync(filePath, buffer);
+      writeFileSync(fullPath, buffer);
       
-      return `local:${filePath}`;
+      return `local:${fullPath}`;
     } catch (error) {
       console.error('Error saving file locally:', error);
       return null;

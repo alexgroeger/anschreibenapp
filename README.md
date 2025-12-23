@@ -1,4 +1,4 @@
-# AI Cover Letter Architect
+# Anschreiben Muckibude
 
 Eine Web-App, die Bewerbungsschreiben basierend auf Jobanzeigen (URL/Datei) und dem Nutzer-Lebenslauf mittels KI erstellt. Die App ermöglicht es Nutzern, ihren Lebenslauf einmalig zu hinterlegen, historische Anschreiben hochzuladen, und alle Bewerbungen in einem Dashboard zu verwalten.
 

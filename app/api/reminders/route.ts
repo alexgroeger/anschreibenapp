@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, getCachedStatement } from '@/lib/database/client';
 import { calculateNextOccurrence, shouldRecurrenceContinue } from '@/lib/reminders/recurrence';
 
+// Route segment config - force dynamic for real-time data
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);

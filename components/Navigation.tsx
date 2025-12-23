@@ -107,7 +107,7 @@ export function Navigation() {
           <div className="flex items-center">
             <Link href="/" className="flex items-center space-x-2">
               <FileCheck className="h-6 w-6 text-primary" />
-              <span className="text-xl font-bold">AI Cover Letter Architect</span>
+              <span className="text-xl font-bold">Anschreiben Muckibude</span>
             </Link>
           </div>
 

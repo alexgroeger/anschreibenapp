@@ -7,9 +7,12 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Card, CardContent } from "@/components/ui/card"
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import Link from "next/link"
 import { format } from "date-fns"
 import { useRouter } from "next/navigation"
+import * as XLSX from "xlsx"
+import { DocumentSearch } from "@/components/documents/DocumentSearch"
 
 interface Contact {
   id: number
@@ -26,6 +29,7 @@ interface Application {
   status: string
   sent_at: string | null
   created_at: string
+  deadline?: string | null
   contacts?: Contact[]
 }
 
@@ -58,6 +62,9 @@ export function ApplicationDashboard() {
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [companyFilter, setCompanyFilter] = useState<string>("")
+  const [positionFilter, setPositionFilter] = useState<string>("")
+  const [sentAtFromFilter, setSentAtFromFilter] = useState<string>("")
+  const [sentAtToFilter, setSentAtToFilter] = useState<string>("")
   const [currentPage, setCurrentPage] = useState(1)
   const [pagination, setPagination] = useState<PaginationInfo | null>(null)
   const [editingId, setEditingId] = useState<number | null>(null)
@@ -66,8 +73,9 @@ export function ApplicationDashboard() {
   const router = useRouter()
   const inputRef = useRef<HTMLInputElement>(null)
   const companyFilterTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const positionFilterTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
-  const loadApplications = useCallback(async (page: number, status: string, company: string) => {
+  const loadApplications = useCallback(async (page: number, status: string, company: string, position: string, sentAtFrom: string, sentAtTo: string) => {
     setLoading(true)
     try {
       const params = new URLSearchParams()
@@ -76,6 +84,15 @@ export function ApplicationDashboard() {
       }
       if (company.trim()) {
         params.append('company', company.trim())
+      }
+      if (position.trim()) {
+        params.append('position', position.trim())
+      }
+      if (sentAtFrom) {
+        params.append('sent_at_from', sentAtFrom)
+      }
+      if (sentAtTo) {
+        params.append('sent_at_to', sentAtTo)
       }
       params.append('page', page.toString())
       params.append('limit', '50')
@@ -95,9 +112,9 @@ export function ApplicationDashboard() {
   }, [])
 
   useEffect(() => {
-    loadApplications(1, statusFilter, companyFilter)
+    loadApplications(1, statusFilter, companyFilter, positionFilter, sentAtFromFilter, sentAtToFilter)
     setCurrentPage(1)
-  }, [statusFilter, loadApplications])
+  }, [statusFilter, sentAtFromFilter, sentAtToFilter, loadApplications])
 
   // Debounce company filter
   useEffect(() => {
@@ -106,7 +123,7 @@ export function ApplicationDashboard() {
     }
     
     companyFilterTimeoutRef.current = setTimeout(() => {
-      loadApplications(1, statusFilter, companyFilter)
+      loadApplications(1, statusFilter, companyFilter, positionFilter, sentAtFromFilter, sentAtToFilter)
       setCurrentPage(1)
     }, 500) // 500ms debounce
 
@@ -115,7 +132,25 @@ export function ApplicationDashboard() {
         clearTimeout(companyFilterTimeoutRef.current)
       }
     }
-  }, [companyFilter, statusFilter, loadApplications])
+  }, [companyFilter, statusFilter, positionFilter, sentAtFromFilter, sentAtToFilter, loadApplications])
+
+  // Debounce position filter
+  useEffect(() => {
+    if (positionFilterTimeoutRef.current) {
+      clearTimeout(positionFilterTimeoutRef.current)
+    }
+    
+    positionFilterTimeoutRef.current = setTimeout(() => {
+      loadApplications(1, statusFilter, companyFilter, positionFilter, sentAtFromFilter, sentAtToFilter)
+      setCurrentPage(1)
+    }, 500) // 500ms debounce
+
+    return () => {
+      if (positionFilterTimeoutRef.current) {
+        clearTimeout(positionFilterTimeoutRef.current)
+      }
+    }
+  }, [positionFilter, statusFilter, companyFilter, sentAtFromFilter, sentAtToFilter, loadApplications])
 
   useEffect(() => {
     if (editingId && editingField && inputRef.current) {
@@ -153,7 +188,7 @@ export function ApplicationDashboard() {
       })
 
       if (response.ok) {
-        await loadApplications(currentPage, statusFilter, companyFilter)
+        await loadApplications(currentPage, statusFilter, companyFilter, positionFilter, sentAtFromFilter, sentAtToFilter)
         handleCancelEdit()
       } else {
         console.error('Failed to update application')
@@ -163,7 +198,7 @@ export function ApplicationDashboard() {
       console.error('Error updating application:', error)
       alert('Fehler beim Speichern der Änderungen')
     }
-  }, [editValues, loadApplications, currentPage, handleCancelEdit])
+  }, [editValues, loadApplications, currentPage, statusFilter, companyFilter, positionFilter, sentAtFromFilter, sentAtToFilter, handleCancelEdit])
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent, id: number, field: string) => {
     if (e.key === 'Enter') {
@@ -184,8 +219,143 @@ export function ApplicationDashboard() {
 
   const handlePageChange = useCallback((newPage: number) => {
     setCurrentPage(newPage)
-    loadApplications(newPage, statusFilter, companyFilter)
-  }, [loadApplications, statusFilter, companyFilter])
+    loadApplications(newPage, statusFilter, companyFilter, positionFilter, sentAtFromFilter, sentAtToFilter)
+  }, [loadApplications, statusFilter, companyFilter, positionFilter, sentAtFromFilter, sentAtToFilter])
+
+  const handleResetFilters = useCallback(() => {
+    setStatusFilter("all")
+    setCompanyFilter("")
+    setPositionFilter("")
+    setSentAtFromFilter("")
+    setSentAtToFilter("")
+    setCurrentPage(1)
+    loadApplications(1, "all", "", "", "", "")
+  }, [loadApplications])
+
+  const handleExport = useCallback(async () => {
+    try {
+      setLoading(true)
+      const params = new URLSearchParams()
+      if (statusFilter !== "all") {
+        params.append('status', statusFilter)
+      }
+      if (companyFilter.trim()) {
+        params.append('company', companyFilter.trim())
+      }
+      if (positionFilter.trim()) {
+        params.append('position', positionFilter.trim())
+      }
+      if (sentAtFromFilter) {
+        params.append('sent_at_from', sentAtFromFilter)
+      }
+      if (sentAtToFilter) {
+        params.append('sent_at_to', sentAtToFilter)
+      }
+      
+      const url = `/api/applications/export?${params.toString()}`
+      const response = await fetch(url)
+      const data = await response.json()
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Export fehlgeschlagen')
+      }
+      
+      const applications = data.applications || []
+      
+      // Prepare data for Excel
+      const headers = [
+        'ID',
+        'Firma',
+        'Position',
+        'Status',
+        'Gesendet am',
+        'Erstellt am',
+        'Frist',
+        'Kontaktpersonen'
+      ]
+      
+      const rows = applications.map((app: Application) => {
+        const contacts = app.contacts && app.contacts.length > 0
+          ? app.contacts.map(c => `${c.name}${c.email ? ` (${c.email})` : ''}`).join('; ')
+          : '-'
+        
+        const sentAt = app.sent_at 
+          ? format(new Date(app.sent_at), 'dd.MM.yyyy')
+          : '-'
+        
+        const createdAt = format(new Date(app.created_at), 'dd.MM.yyyy')
+        
+        const deadline = app.deadline
+          ? format(new Date(app.deadline), 'dd.MM.yyyy')
+          : '-'
+        
+        return [
+          app.id,
+          app.company,
+          app.position,
+          statusLabels[app.status] || app.status,
+          sentAt,
+          createdAt,
+          deadline,
+          contacts
+        ]
+      })
+      
+      // Create worksheet data
+      const worksheetData = [headers, ...rows]
+      
+      // Create workbook and worksheet
+      const workbook = XLSX.utils.book_new()
+      const worksheet = XLSX.utils.aoa_to_sheet(worksheetData)
+      
+      // Set column widths for better readability
+      worksheet['!cols'] = [
+        { wch: 8 },   // ID
+        { wch: 25 },  // Firma
+        { wch: 30 },  // Position
+        { wch: 25 },  // Status
+        { wch: 12 },  // Gesendet am
+        { wch: 12 },  // Erstellt am
+        { wch: 12 },  // Frist
+        { wch: 40 }   // Kontaktpersonen
+      ]
+      
+      // Add worksheet to workbook
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Bewerbungen')
+      
+      // Generate Excel file
+      const excelBuffer = XLSX.write(workbook, { 
+        type: 'array', 
+        bookType: 'xlsx',
+        cellStyles: true
+      })
+      
+      // Create blob and download
+      const blob = new Blob([excelBuffer], { 
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+      })
+      
+      // Create download link
+      const link = document.createElement('a')
+      const blobUrl = window.URL.createObjectURL(blob)
+      link.setAttribute('href', blobUrl)
+      
+      // Generate filename with current date
+      const dateStr = format(new Date(), 'yyyy-MM-dd')
+      link.setAttribute('download', `bewerbungen-export-${dateStr}.xlsx`)
+      
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(blobUrl)
+      
+    } catch (error) {
+      console.error('Error exporting applications:', error)
+      alert('Fehler beim Exportieren der Daten')
+    } finally {
+      setLoading(false)
+    }
+  }, [statusFilter, companyFilter, positionFilter, sentAtFromFilter, sentAtToFilter])
 
   // Applications are already filtered server-side, no need for client-side filtering
   const displayedApplications = useMemo(() => applications, [applications])
@@ -196,15 +366,54 @@ export function ApplicationDashboard() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <h2 className="text-2xl font-semibold">Bewerbungen</h2>
-        <div className="flex flex-wrap gap-4 w-full sm:w-auto">
+      <Tabs defaultValue="applications" className="w-full">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
+          <h2 className="text-2xl font-semibold">Bewerbungen</h2>
+          <div className="flex gap-2">
+            <Link href="/bewerbung-hinzufuegen">
+              <Button className="w-full sm:w-auto">Neue Bewerbung</Button>
+            </Link>
+          </div>
+        </div>
+        <TabsList>
+          <TabsTrigger value="applications">Bewerbungen</TabsTrigger>
+          <TabsTrigger value="documents">Dokumentensuche</TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="applications" className="space-y-6 mt-6">
+          <div className="space-y-4">
+        <div className="flex flex-wrap gap-4 items-end">
           <Input
             placeholder="Firma suchen..."
             value={companyFilter}
             onChange={(e) => setCompanyFilter(e.target.value)}
-            className="w-full sm:w-[200px]"
+            className="w-full sm:w-[180px]"
           />
+          <Input
+            placeholder="Position suchen..."
+            value={positionFilter}
+            onChange={(e) => setPositionFilter(e.target.value)}
+            className="w-full sm:w-[180px]"
+          />
+          <div className="flex flex-col gap-1 w-full sm:w-auto">
+            <label className="text-xs text-muted-foreground px-1">Gesendet</label>
+            <div className="flex gap-2">
+              <Input
+                type="date"
+                placeholder="Von"
+                value={sentAtFromFilter}
+                onChange={(e) => setSentAtFromFilter(e.target.value)}
+                className="w-full sm:w-[140px]"
+              />
+              <Input
+                type="date"
+                placeholder="Bis"
+                value={sentAtToFilter}
+                onChange={(e) => setSentAtToFilter(e.target.value)}
+                className="w-full sm:w-[140px]"
+              />
+            </div>
+          </div>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="w-full sm:w-[200px]">
               <SelectValue placeholder="Status filtern" />
@@ -217,9 +426,21 @@ export function ApplicationDashboard() {
               <SelectItem value="angenommen">Angenommen</SelectItem>
             </SelectContent>
           </Select>
-          <Link href="/bewerbung-hinzufuegen">
-            <Button className="w-full sm:w-auto">Neue Bewerbung</Button>
-          </Link>
+          <Button
+            variant="outline"
+            onClick={handleResetFilters}
+            className="w-full sm:w-auto"
+          >
+            Filter zurücksetzen
+          </Button>
+          <Button
+            variant="outline"
+            onClick={handleExport}
+            className="w-full sm:w-auto"
+            disabled={loading}
+          >
+            {loading ? 'Exportiere...' : 'Als Excel exportieren'}
+          </Button>
         </div>
       </div>
 
@@ -316,7 +537,7 @@ export function ApplicationDashboard() {
                             })
 
                             if (response.ok) {
-                              await loadApplications(currentPage, statusFilter, companyFilter)
+                              await loadApplications(currentPage, statusFilter, companyFilter, positionFilter, sentAtFromFilter, sentAtToFilter)
                               handleCancelEdit()
                             } else {
                               console.error('Failed to update application')
@@ -402,6 +623,12 @@ export function ApplicationDashboard() {
           )}
         </>
       )}
+        </TabsContent>
+        
+        <TabsContent value="documents" className="mt-6">
+          <DocumentSearch />
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }
