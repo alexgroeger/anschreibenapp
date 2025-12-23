@@ -6,7 +6,9 @@ export async function parsePDF(file: File): Promise<string> {
   const buffer = Buffer.from(arrayBuffer);
   
   // Dynamic import to avoid issues with native dependencies
-  const pdfParse = (await import('pdf-parse')).default;
+  const pdfParseModule = await import('pdf-parse');
+  // pdf-parse doesn't have a default export, use the module directly
+  const pdfParse = 'default' in pdfParseModule ? pdfParseModule.default : pdfParseModule as any;
   const data = await pdfParse(buffer);
   return data.text;
 }
@@ -25,7 +27,9 @@ export async function parseDOCX(file: File): Promise<string> {
   const arrayBuffer = await file.arrayBuffer();
   
   // Dynamic import to avoid issues with native dependencies
-  const mammoth = (await import('mammoth')).default;
+  const mammothModule = await import('mammoth');
+  // mammoth has a default export
+  const mammoth = 'default' in mammothModule ? mammothModule.default : mammothModule as any;
   const result = await mammoth.extractRawText({ arrayBuffer });
   return result.value;
 }

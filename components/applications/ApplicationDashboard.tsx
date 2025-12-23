@@ -184,8 +184,8 @@ export function ApplicationDashboard() {
 
   const handlePageChange = useCallback((newPage: number) => {
     setCurrentPage(newPage)
-    loadApplications(newPage)
-  }, [loadApplications])
+    loadApplications(newPage, statusFilter, companyFilter)
+  }, [loadApplications, statusFilter, companyFilter])
 
   // Applications are already filtered server-side, no need for client-side filtering
   const displayedApplications = useMemo(() => applications, [applications])

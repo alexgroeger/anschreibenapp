@@ -27,6 +27,7 @@ export function CoverLetterChat({
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   const { messages, sendMessage, status } = useChat({
+    baseUrl: typeof window !== 'undefined' ? window.location.origin : '',
     api: '/api/chat',
     body: () => ({
       coverLetter,
@@ -34,7 +35,7 @@ export function CoverLetterChat({
       jobDescription,
       extraction,
     }),
-    onFinish: (message) => {
+    onFinish: (message: any) => {
       // Extract text from the finished message
       const content = getMessageContent(message).trim()
       
@@ -46,7 +47,7 @@ export function CoverLetterChat({
         }
       }
     },
-  })
+  } as any)
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })

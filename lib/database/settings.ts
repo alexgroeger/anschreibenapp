@@ -42,14 +42,12 @@ export function setSetting(key: string, value: string): void {
   db.prepare(
     'INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)'
   ).run(key, value);
-  
-  // Invalidate cache when settings are updated
-  settingsCache = null;
 }
 
 /**
  * Invalidiert den Settings-Cache (für manuelle Cache-Invalidierung)
+ * Note: Currently no cache is implemented, this function is kept for future use
  */
 export function invalidateSettingsCache(): void {
-  settingsCache = null;
+  // Cache invalidation would go here if caching is implemented
 }
