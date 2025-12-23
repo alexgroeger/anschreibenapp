@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, syncDatabaseAfterWrite } from '@/lib/database/client';
 
+// Route segment config - force dynamic for real-time data
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 export async function GET() {
   try {
     const db = getDatabase();

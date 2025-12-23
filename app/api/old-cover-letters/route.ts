@@ -4,6 +4,9 @@ import { parseFile } from '@/lib/file-parser';
 
 // Force Node.js runtime for file parsing (pdfjs-dist and mammoth require Node.js)
 export const runtime = 'nodejs';
+// Route segment config - force dynamic for real-time data
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
 
 export async function GET() {
   try {

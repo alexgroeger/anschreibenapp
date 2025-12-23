@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase } from '@/lib/database/client';
 
+// Route segment config - short cache for dashboard data
+export const dynamic = 'force-dynamic'
+export const revalidate = 30 // Revalidate every 30 seconds
+
 export async function GET(request: NextRequest) {
   try {
     const db = getDatabase();
@@ -73,10 +77,15 @@ export async function GET(request: NextRequest) {
       contacts: contactsMap[app.id] || []
     }));
     
-    return NextResponse.json({
+    const response = NextResponse.json({
       applications: addContacts(allOpenTasks),
       withDeadlines: addContacts(withDeadlines)
     }, { status: 200 });
+    
+    // Cache-Control header for client-side caching
+    response.headers.set('Cache-Control', 'private, max-age=30, stale-while-revalidate=60');
+    
+    return response;
   } catch (error) {
     console.error('Error fetching open tasks:', error);
     return NextResponse.json(

@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, getCachedStatement, syncDatabaseAfterWrite } from '@/lib/database/client';
 import { syncDeadlineReminder } from '@/lib/reminders/deadline-sync';
 
+// Route segment config - force dynamic for real-time data
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -134,7 +138,7 @@ export async function GET(request: NextRequest) {
     const totalResult = getCachedStatement(countQuery).get(...countParams) as { total: number };
     const total = totalResult.total;
     
-    return NextResponse.json({ 
+    const response = NextResponse.json({ 
       applications: applicationsWithContacts,
       pagination: {
         total,
@@ -144,6 +148,11 @@ export async function GET(request: NextRequest) {
         totalPages: Math.ceil(total / limit)
       }
     }, { status: 200 });
+    
+    // Cache-Control header - no cache for filtered/paginated results
+    response.headers.set('Cache-Control', 'private, no-cache, no-store, must-revalidate');
+    
+    return response;
   } catch (error) {
     console.error('Error fetching applications:', error);
     return NextResponse.json(
