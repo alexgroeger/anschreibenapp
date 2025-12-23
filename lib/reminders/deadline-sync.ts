@@ -22,7 +22,8 @@ export async function syncDeadlineReminder(
 
   if (deadline) {
     // Create or update deadline reminder
-    const title = `Bewerbungsfrist: ${company} - ${position}`;
+    // Titel ist immer "Bewerbungsfrist" (wie im Formular)
+    const title = 'Bewerbungsfrist';
     const dueDate = new Date(deadline);
     
     // Set time to end of day (23:59:59) if only date is provided

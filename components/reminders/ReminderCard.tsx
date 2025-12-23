@@ -5,7 +5,8 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { format, isPast, isToday, differenceInDays } from "date-fns"
-import { Check, Edit, Trash2, Calendar, RotateCcw, Clock } from "lucide-react"
+import { Check, Trash2, Calendar, RotateCcw, Clock, ExternalLink } from "lucide-react"
+import Link from "next/link"
 
 export interface Reminder {
   id: number
@@ -99,94 +100,114 @@ export function ReminderCard({
   }
   
   return (
-    <Card className="hover:shadow-md transition-shadow">
-      <CardContent className="p-4">
-        <div className="space-y-3">
-          {/* Header */}
-          <div className="flex items-start justify-between gap-2">
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-1">
-                <h4 className="font-semibold text-sm truncate">{reminder.title}</h4>
-                <Badge 
-                  variant="outline" 
-                  className={`text-xs ${getStatusColor()}`}
-                >
-                  {reminder.status === 'completed' ? 'Erledigt' : 
-                   reminder.status === 'cancelled' ? 'Abgebrochen' : 
-                   isOverdue ? 'Überfällig' : 
-                   isDueToday ? 'Heute' : 
-                   'Offen'}
-                </Badge>
-                {reminder.reminder_type === 'deadline' && (
-                  <Badge variant="outline" className="text-xs">
-                    Frist
-                  </Badge>
-                )}
-                {reminder.is_recurring === 1 && (
-                  <Badge variant="outline" className="text-xs">
-                    <RotateCcw className="h-3 w-3 mr-1" />
-                    Wiederkehrend
-                  </Badge>
-                )}
-              </div>
-              {reminder.description && (
-                <p className="text-xs text-muted-foreground line-clamp-2">
-                  {reminder.description}
-                </p>
-              )}
+    <div 
+      className={`p-2 border rounded-md hover:bg-muted/50 transition-colors ${isOverdue ? 'border-red-300 bg-red-50/30' : ''}`}
+    >
+      <div className="flex items-center gap-2">
+        {/* Title */}
+        {reminder.application_id ? (
+          <Link href={`/dashboard/${reminder.application_id}`} className="flex-shrink-0">
+            <span className={`text-sm font-medium hover:underline ${isOverdue ? 'text-red-600' : ''}`}>
+              {reminder.title}
+            </span>
+          </Link>
+        ) : (
+          <span className={`text-sm font-medium flex-shrink-0 ${isOverdue ? 'text-red-600' : ''}`}>
+            {reminder.title}
+          </span>
+        )}
+        
+        {/* Info badges and date - direkt neben dem Titel */}
+        <div className="flex items-center gap-1.5 flex-1 min-w-0">
+          {/* Typ-Badge */}
+          <Badge 
+            variant="outline" 
+            className={`text-[10px] px-1.5 py-0 h-4 flex-shrink-0 ${reminder.reminder_type === 'deadline' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-green-50 text-green-700 border-green-200'}`}
+          >
+            {reminder.reminder_type === 'deadline' ? 'Frist' : 'Persönlich'}
+          </Badge>
+          
+          {/* Wiederkehrend Icon */}
+          {reminder.is_recurring === 1 && (
+            <div title="Wiederkehrend" className="flex-shrink-0">
+              <RotateCcw className="h-3 w-3 text-muted-foreground" />
             </div>
-          </div>
+          )}
           
-          {/* Due Date */}
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          {/* Fälligkeitsdatum */}
+          <div className="flex items-center gap-1 text-xs text-muted-foreground flex-shrink-0">
             <Calendar className="h-3 w-3" />
-            <span>{getDueDateText()}</span>
+            <span className="whitespace-nowrap">{getDueDateText()}</span>
           </div>
           
-          {/* Actions */}
-          <div className="flex items-center gap-2 pt-2 border-t">
-            {reminder.status === 'completed' ? (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => onUncomplete(reminder.id)}
-                className="h-7 text-xs flex-1"
-              >
-                <RotateCcw className="h-3 w-3 mr-1" />
-                Wiedereröffnen
-              </Button>
-            ) : (
-              <Button
-                size="sm"
-                variant="default"
-                onClick={() => onComplete(reminder.id)}
-                className="h-7 text-xs flex-1"
-              >
-                <Check className="h-3 w-3 mr-1" />
-                Erledigt
-              </Button>
-            )}
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => onEdit(reminder)}
-              className="h-7 px-2"
-            >
-              <Edit className="h-3 w-3" />
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={handleDelete}
-              disabled={isDeleting}
-              className="h-7 px-2 text-destructive hover:text-destructive"
-            >
-              <Trash2 className="h-3 w-3" />
-            </Button>
-          </div>
+          {/* Status-Badge */}
+          <Badge 
+            variant="outline" 
+            className={`text-[10px] px-1.5 py-0 h-4 flex-shrink-0 ${getStatusColor()}`}
+          >
+            {reminder.status === 'completed' ? '✓ Erledigt' : 
+             reminder.status === 'cancelled' ? '✗ Abgebrochen' : 
+             isOverdue ? '! Überfällig' : 
+             isDueToday ? 'Heute' : 
+             'Offen'}
+          </Badge>
         </div>
-      </CardContent>
-    </Card>
+        
+        {/* Actions - rechts */}
+        <div className="flex items-center gap-1 flex-shrink-0">
+          {reminder.status === 'completed' ? (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => onUncomplete(reminder.id)}
+              className="h-6 w-6 p-0"
+              title="Wiedereröffnen"
+            >
+              <RotateCcw className="h-3 w-3" />
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => onComplete(reminder.id)}
+              className="h-6 w-6 p-0"
+              title="Erledigt"
+            >
+              <Check className="h-3 w-3" />
+            </Button>
+          )}
+          {reminder.application_id && (
+            <Link href={`/dashboard/${reminder.application_id}`}>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-6 w-6 p-0"
+                title="Zur Bewerbung"
+              >
+                <ExternalLink className="h-3 w-3" />
+              </Button>
+            </Link>
+          )}
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={handleDelete}
+            disabled={isDeleting}
+            className="h-6 w-6 p-0 text-destructive hover:text-destructive"
+            title="Löschen"
+          >
+            <Trash2 className="h-3 w-3" />
+          </Button>
+        </div>
+      </div>
+      
+      {/* Description - nur wenn vorhanden, unter der Hauptzeile */}
+      {reminder.description && (
+        <p className="text-xs text-muted-foreground mt-1.5 line-clamp-1">
+          {reminder.description}
+        </p>
+      )}
+    </div>
   )
 }
 

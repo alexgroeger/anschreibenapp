@@ -13,27 +13,37 @@ const getPdfjs = async () => {
       // The module exports named exports, not default
       pdfjsModule = pdfjsLib;
       
-      // Disable worker for Node.js server environment
-      // In Node.js, we don't need workers - we can parse directly in the main thread
-      // Set workerSrc to an empty string or disable it completely
+      // Configure worker for Node.js server environment
+      // pdfjs-dist requires workerSrc to be set
+      // In Node.js, we need to provide a valid worker path, but we can use a no-op worker
+      // or set it to a path that will cause it to fall back to main thread
       if (pdfjsModule.GlobalWorkerOptions) {
-        // Try to completely disable the worker
-        // Setting it to empty string or null should prevent worker initialization
-        pdfjsModule.GlobalWorkerOptions.workerSrc = '';
+        // Try to find the actual worker file path in node_modules
+        // If that fails, we'll use a data URL as fallback
+        const path = require('path');
+        const fs = require('fs');
         
-        // Also try to set it to a non-existent path to force main thread execution
-        // This is a workaround for the worker initialization issue
-        try {
-          // Override the worker setup to prevent it from trying to load
-          const originalWorkerSrc = pdfjsModule.GlobalWorkerOptions.workerSrc;
-          Object.defineProperty(pdfjsModule.GlobalWorkerOptions, 'workerSrc', {
-            get: () => '',
-            set: () => {}, // Ignore any attempts to set it
-            configurable: true,
-          });
-        } catch (e) {
-          // If that doesn't work, just leave it as empty string
-          pdfjsModule.GlobalWorkerOptions.workerSrc = '';
+        // Try to find the worker file
+        const possibleWorkerPaths = [
+          path.join(process.cwd(), 'node_modules', 'pdfjs-dist', 'legacy', 'build', 'pdf.worker.mjs'),
+          path.join(process.cwd(), 'node_modules', 'pdfjs-dist', 'build', 'pdf.worker.mjs'),
+        ];
+        
+        let workerPath = null;
+        for (const workerPathOption of possibleWorkerPaths) {
+          if (fs.existsSync(workerPathOption)) {
+            workerPath = workerPathOption;
+            break;
+          }
+        }
+        
+        if (workerPath) {
+          // Use the actual worker file path
+          pdfjsModule.GlobalWorkerOptions.workerSrc = workerPath;
+        } else {
+          // Fallback: use a data URL that will fail gracefully
+          // This satisfies the requirement but doesn't actually create a worker
+          pdfjsModule.GlobalWorkerOptions.workerSrc = 'data:application/javascript,';
         }
       }
       
@@ -98,18 +108,14 @@ export async function parsePDF(file: File): Promise<string> {
     }
     
     // Load the PDF document
-    // Disable worker explicitly for Node.js server environment
-    // In Node.js, we parse directly without workers
+    // For Node.js, we need to ensure the worker is properly configured
+    // The workerSrc is already set in getPdfjs(), so we just need to call getDocument
     const loadingTask = getDocument({
       data: uint8Array,
       useSystemFonts: true,
       verbosity: 0, // Suppress warnings
-      // Disable all worker-related features for Node.js
-      useWorkerFetch: false,
-      isEvalSupported: false,
-      // Force main thread execution
-      disableAutoFetch: false,
-      disableStream: false,
+      // In Node.js, workers don't work the same way, so we rely on main thread
+      // The workerSrc is set to a data URL which will fail gracefully
     });
     
     const pdfDocument = await loadingTask.promise;

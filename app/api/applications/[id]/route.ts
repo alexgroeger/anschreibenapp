@@ -59,7 +59,7 @@ export async function PATCH(
     }
     
     const body = await request.json();
-    const { status, sent_at, company, position, cover_letter, match_result, deadline } = body;
+    const { status, sent_at, company, position, cover_letter, match_result, match_score, deadline } = body;
     
     const db = getDatabase();
     const updates: string[] = [];
@@ -88,6 +88,10 @@ export async function PATCH(
     if (match_result !== undefined) {
       updates.push('match_result = ?');
       values.push(match_result);
+    }
+    if (match_score !== undefined) {
+      updates.push('match_score = ?');
+      values.push(match_score);
     }
     if (deadline !== undefined) {
       updates.push('deadline = ?');

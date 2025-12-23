@@ -2,24 +2,39 @@
 
 import { useState, useEffect } from "react"
 import { ReminderCard, Reminder } from "./ReminderCard"
+import { ReminderCalendar } from "./ReminderCalendar"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { format, isToday, isThisWeek, startOfDay, differenceInDays } from "date-fns"
-import Link from "next/link"
-import { Button } from "@/components/ui/button"
-import { Calendar } from "lucide-react"
+import { format, isToday, startOfDay, differenceInDays } from "date-fns"
+import { Calendar as CalendarIcon, AlertTriangle, Clock } from "lucide-react"
 
 export function ReminderOverview() {
   const [reminders, setReminders] = useState<Reminder[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    loadReminders()
+    // First sync reminders, then load them
+    const syncAndLoad = async () => {
+      try {
+        // Sync reminders for all applications with deadlines
+        await fetch("/api/reminders/sync-all", { method: "POST" })
+      } catch (error) {
+        console.error("Error syncing reminders:", error)
+      }
+      // Then load reminders
+      await loadReminders()
+    }
+    syncAndLoad()
   }, [])
 
   const loadReminders = async () => {
+    setLoading(true)
     try {
       const response = await fetch("/api/reminders?upcoming=true&status=pending")
-      if (!response.ok) throw new Error("Failed to load reminders")
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
+        console.error("Failed to load reminders:", errorData)
+        throw new Error(errorData.error || "Failed to load reminders")
+      }
       const data = await response.json()
       setReminders(data.reminders || [])
     } catch (error) {
@@ -29,35 +44,58 @@ export function ReminderOverview() {
     }
   }
 
-  // Group reminders by due date
+  // Group reminders by type and due date
   const groupReminders = (reminders: Reminder[]) => {
     const today = startOfDay(new Date())
-    const groups = {
-      overdue: [] as Reminder[],
-      today: [] as Reminder[],
-      thisWeek: [] as Reminder[],
-      later: [] as Reminder[],
+    
+    // Separate by type
+    const deadlineReminders = reminders.filter(r => r.reminder_type === 'deadline')
+    const customReminders = reminders.filter(r => r.reminder_type === 'custom')
+    
+    // Group each type by due date
+    const groupByDate = (reminderList: Reminder[]) => {
+      const groups = {
+        overdue: [] as Reminder[],
+        today: [] as Reminder[],
+        thisWeek: [] as Reminder[],
+        later: [] as Reminder[],
+      }
+
+      reminderList.forEach((reminder) => {
+        const dueDate = startOfDay(new Date(reminder.due_date))
+        const daysDiff = differenceInDays(dueDate, today)
+
+        if (daysDiff < 0) {
+          groups.overdue.push(reminder)
+        } else if (isToday(dueDate)) {
+          groups.today.push(reminder)
+        } else if (daysDiff <= 7) {
+          groups.thisWeek.push(reminder)
+        } else {
+          groups.later.push(reminder)
+        }
+      })
+
+      // Sort reminders within each group by due date
+      Object.keys(groups).forEach((key) => {
+        groups[key as keyof typeof groups].sort((a, b) => {
+          const dateA = new Date(a.due_date).getTime()
+          const dateB = new Date(b.due_date).getTime()
+          return dateA - dateB
+        })
+      })
+
+      return groups
     }
 
-    reminders.forEach((reminder) => {
-      const dueDate = startOfDay(new Date(reminder.due_date))
-      const daysDiff = differenceInDays(dueDate, today)
-
-      if (daysDiff < 0) {
-        groups.overdue.push(reminder)
-      } else if (isToday(dueDate)) {
-        groups.today.push(reminder)
-      } else if (daysDiff <= 7) {
-        groups.thisWeek.push(reminder)
-      } else {
-        groups.later.push(reminder)
-      }
-    })
-
-    return groups
+    return {
+      deadline: groupByDate(deadlineReminders),
+      custom: groupByDate(customReminders),
+      all: reminders
+    }
   }
 
-  const groups = groupReminders(reminders)
+  const groupedReminders = groupReminders(reminders)
   const hasReminders = reminders.length > 0
 
   if (loading) {
@@ -70,160 +108,272 @@ export function ReminderOverview() {
     )
   }
 
-  if (!hasReminders) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Calendar className="h-4 w-4" />
-            Anstehende Erinnerungen
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">
-            Keine anstehenden Erinnerungen.
-          </p>
-        </CardContent>
-      </Card>
-    )
-  }
-
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Calendar className="h-4 w-4" />
+          <CardTitle className="text-base flex items-center gap-2">
+            <CalendarIcon className="h-4 w-4" />
             Anstehende Erinnerungen
           </CardTitle>
-          <span className="text-sm text-muted-foreground">
+          <span className="text-xs text-muted-foreground">
             {reminders.length} {reminders.length === 1 ? "Erinnerung" : "Erinnerungen"}
           </span>
         </div>
       </CardHeader>
-      <CardContent className="space-y-6">
-        {groups.overdue.length > 0 && (
-          <div>
-            <h4 className="text-sm font-semibold text-red-600 mb-2">
-              Überfällig ({groups.overdue.length})
-            </h4>
-            <div className="space-y-2">
-              {groups.overdue.slice(0, 5).map((reminder) => (
-                <ReminderCard
-                  key={reminder.id}
-                  reminder={reminder}
-                  onComplete={async () => {
-                    await fetch(`/api/reminders/${reminder.id}/complete`, { method: "POST" })
-                    loadReminders()
-                  }}
-                  onUncomplete={async () => {
-                    await fetch(`/api/reminders/${reminder.id}/complete`, { method: "PATCH" })
-                    loadReminders()
-                  }}
-                  onEdit={() => {}}
-                  onDelete={async () => {
-                    await fetch(`/api/reminders/${reminder.id}`, { method: "DELETE" })
-                    loadReminders()
-                  }}
-                />
-              ))}
-            </div>
-          </div>
-        )}
+      <CardContent className="space-y-2">
+        {!hasReminders ? (
+          <p className="text-xs text-muted-foreground text-center py-3">
+            Keine anstehenden Erinnerungen.
+          </p>
+        ) : (
+          <>
+            {/* Deadline Reminders (Bewerbungsfristen) */}
+            {(groupedReminders.deadline.overdue.length > 0 || 
+              groupedReminders.deadline.today.length > 0 || 
+              groupedReminders.deadline.thisWeek.length > 0 || 
+              groupedReminders.deadline.later.length > 0) && (
+              <div>
+                <h3 className="text-xs font-semibold mb-1.5 flex items-center gap-1.5">
+                  <AlertTriangle className="h-3 w-3 text-orange-500" />
+                  Bewerbungsfristen
+                </h3>
+                
+                <div className="space-y-1">
+                  {groupedReminders.deadline.overdue.length > 0 && (
+                    <>
+                      <h4 className="text-[10px] font-medium text-red-600 mb-0.5">
+                        Überfällig ({groupedReminders.deadline.overdue.length})
+                      </h4>
+                      {groupedReminders.deadline.overdue.map((reminder) => (
+                        <ReminderCard
+                          key={reminder.id}
+                          reminder={reminder}
+                          onComplete={async () => {
+                            await fetch(`/api/reminders/${reminder.id}/complete`, { method: "POST" })
+                            loadReminders()
+                          }}
+                          onUncomplete={async () => {
+                            await fetch(`/api/reminders/${reminder.id}/complete`, { method: "PATCH" })
+                            loadReminders()
+                          }}
+                          onEdit={() => {}}
+                          onDelete={async () => {
+                            await fetch(`/api/reminders/${reminder.id}`, { method: "DELETE" })
+                            loadReminders()
+                          }}
+                        />
+                      ))}
+                    </>
+                  )}
 
-        {groups.today.length > 0 && (
-          <div>
-            <h4 className="text-sm font-semibold text-orange-600 mb-2">
-              Heute ({groups.today.length})
-            </h4>
-            <div className="space-y-2">
-              {groups.today.slice(0, 5).map((reminder) => (
-                <ReminderCard
-                  key={reminder.id}
-                  reminder={reminder}
-                  onComplete={async () => {
-                    await fetch(`/api/reminders/${reminder.id}/complete`, { method: "POST" })
-                    loadReminders()
-                  }}
-                  onUncomplete={async () => {
-                    await fetch(`/api/reminders/${reminder.id}/complete`, { method: "PATCH" })
-                    loadReminders()
-                  }}
-                  onEdit={() => {}}
-                  onDelete={async () => {
-                    await fetch(`/api/reminders/${reminder.id}`, { method: "DELETE" })
-                    loadReminders()
-                  }}
-                />
-              ))}
-            </div>
-          </div>
-        )}
+                  {groupedReminders.deadline.today.length > 0 && (
+                    <>
+                      <h4 className="text-[10px] font-medium text-orange-600 mb-0.5 mt-1.5">
+                        Heute ({groupedReminders.deadline.today.length})
+                      </h4>
+                      {groupedReminders.deadline.today.map((reminder) => (
+                        <ReminderCard
+                          key={reminder.id}
+                          reminder={reminder}
+                          onComplete={async () => {
+                            await fetch(`/api/reminders/${reminder.id}/complete`, { method: "POST" })
+                            loadReminders()
+                          }}
+                          onUncomplete={async () => {
+                            await fetch(`/api/reminders/${reminder.id}/complete`, { method: "PATCH" })
+                            loadReminders()
+                          }}
+                          onEdit={() => {}}
+                          onDelete={async () => {
+                            await fetch(`/api/reminders/${reminder.id}`, { method: "DELETE" })
+                            loadReminders()
+                          }}
+                        />
+                      ))}
+                    </>
+                  )}
 
-        {groups.thisWeek.length > 0 && (
-          <div>
-            <h4 className="text-sm font-semibold text-yellow-600 mb-2">
-              Diese Woche ({groups.thisWeek.length})
-            </h4>
-            <div className="space-y-2">
-              {groups.thisWeek.slice(0, 5).map((reminder) => (
-                <ReminderCard
-                  key={reminder.id}
-                  reminder={reminder}
-                  onComplete={async () => {
-                    await fetch(`/api/reminders/${reminder.id}/complete`, { method: "POST" })
-                    loadReminders()
-                  }}
-                  onUncomplete={async () => {
-                    await fetch(`/api/reminders/${reminder.id}/complete`, { method: "PATCH" })
-                    loadReminders()
-                  }}
-                  onEdit={() => {}}
-                  onDelete={async () => {
-                    await fetch(`/api/reminders/${reminder.id}`, { method: "DELETE" })
-                    loadReminders()
-                  }}
-                />
-              ))}
-            </div>
-          </div>
-        )}
+                  {groupedReminders.deadline.thisWeek.length > 0 && (
+                    <>
+                      <h4 className="text-[10px] font-medium text-yellow-600 mb-0.5 mt-1.5">
+                        Diese Woche ({groupedReminders.deadline.thisWeek.length})
+                      </h4>
+                      {groupedReminders.deadline.thisWeek.map((reminder) => (
+                        <ReminderCard
+                          key={reminder.id}
+                          reminder={reminder}
+                          onComplete={async () => {
+                            await fetch(`/api/reminders/${reminder.id}/complete`, { method: "POST" })
+                            loadReminders()
+                          }}
+                          onUncomplete={async () => {
+                            await fetch(`/api/reminders/${reminder.id}/complete`, { method: "PATCH" })
+                            loadReminders()
+                          }}
+                          onEdit={() => {}}
+                          onDelete={async () => {
+                            await fetch(`/api/reminders/${reminder.id}`, { method: "DELETE" })
+                            loadReminders()
+                          }}
+                        />
+                      ))}
+                    </>
+                  )}
 
-        {groups.later.length > 0 && (
-          <div>
-            <h4 className="text-sm font-semibold text-muted-foreground mb-2">
-              Später ({groups.later.length})
-            </h4>
-            <div className="space-y-2">
-              {groups.later.slice(0, 3).map((reminder) => (
-                <ReminderCard
-                  key={reminder.id}
-                  reminder={reminder}
-                  onComplete={async () => {
-                    await fetch(`/api/reminders/${reminder.id}/complete`, { method: "POST" })
-                    loadReminders()
-                  }}
-                  onUncomplete={async () => {
-                    await fetch(`/api/reminders/${reminder.id}/complete`, { method: "PATCH" })
-                    loadReminders()
-                  }}
-                  onEdit={() => {}}
-                  onDelete={async () => {
-                    await fetch(`/api/reminders/${reminder.id}`, { method: "DELETE" })
-                    loadReminders()
-                  }}
-                />
-              ))}
-            </div>
-          </div>
-        )}
+                  {groupedReminders.deadline.later.length > 0 && (
+                    <>
+                      <h4 className="text-[10px] font-medium text-muted-foreground mb-0.5 mt-1.5">
+                        Später ({groupedReminders.deadline.later.length})
+                      </h4>
+                      {groupedReminders.deadline.later.slice(0, 2).map((reminder) => (
+                        <ReminderCard
+                          key={reminder.id}
+                          reminder={reminder}
+                          onComplete={async () => {
+                            await fetch(`/api/reminders/${reminder.id}/complete`, { method: "POST" })
+                            loadReminders()
+                          }}
+                          onUncomplete={async () => {
+                            await fetch(`/api/reminders/${reminder.id}/complete`, { method: "PATCH" })
+                            loadReminders()
+                          }}
+                          onEdit={() => {}}
+                          onDelete={async () => {
+                            await fetch(`/api/reminders/${reminder.id}`, { method: "DELETE" })
+                            loadReminders()
+                          }}
+                        />
+                      ))}
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
 
-        {reminders.length > 10 && (
-          <div className="pt-4 border-t text-center">
-            <p className="text-sm text-muted-foreground">
-              Zeige die nächsten 10 von {reminders.length} Erinnerungen
-            </p>
-          </div>
+            {/* Custom Reminders (Benutzerdefinierte Erinnerungen) */}
+            {(groupedReminders.custom.overdue.length > 0 || 
+              groupedReminders.custom.today.length > 0 || 
+              groupedReminders.custom.thisWeek.length > 0 || 
+              groupedReminders.custom.later.length > 0) && (
+              <div className="pt-2 border-t">
+                <h3 className="text-xs font-semibold mb-1.5 flex items-center gap-1.5">
+                  <Clock className="h-3 w-3" />
+                  Benutzerdefinierte Erinnerungen
+                </h3>
+                
+                <div className="space-y-1">
+                  {groupedReminders.custom.overdue.length > 0 && (
+                    <>
+                      <h4 className="text-[10px] font-medium text-red-600 mb-0.5">
+                        Überfällig ({groupedReminders.custom.overdue.length})
+                      </h4>
+                      {groupedReminders.custom.overdue.slice(0, 3).map((reminder) => (
+                        <ReminderCard
+                          key={reminder.id}
+                          reminder={reminder}
+                          onComplete={async () => {
+                            await fetch(`/api/reminders/${reminder.id}/complete`, { method: "POST" })
+                            loadReminders()
+                          }}
+                          onUncomplete={async () => {
+                            await fetch(`/api/reminders/${reminder.id}/complete`, { method: "PATCH" })
+                            loadReminders()
+                          }}
+                          onEdit={() => {}}
+                          onDelete={async () => {
+                            await fetch(`/api/reminders/${reminder.id}`, { method: "DELETE" })
+                            loadReminders()
+                          }}
+                        />
+                      ))}
+                    </>
+                  )}
+
+                  {groupedReminders.custom.today.length > 0 && (
+                    <>
+                      <h4 className="text-[10px] font-medium text-orange-600 mb-0.5 mt-1.5">
+                        Heute ({groupedReminders.custom.today.length})
+                      </h4>
+                      {groupedReminders.custom.today.slice(0, 3).map((reminder) => (
+                        <ReminderCard
+                          key={reminder.id}
+                          reminder={reminder}
+                          onComplete={async () => {
+                            await fetch(`/api/reminders/${reminder.id}/complete`, { method: "POST" })
+                            loadReminders()
+                          }}
+                          onUncomplete={async () => {
+                            await fetch(`/api/reminders/${reminder.id}/complete`, { method: "PATCH" })
+                            loadReminders()
+                          }}
+                          onEdit={() => {}}
+                          onDelete={async () => {
+                            await fetch(`/api/reminders/${reminder.id}`, { method: "DELETE" })
+                            loadReminders()
+                          }}
+                        />
+                      ))}
+                    </>
+                  )}
+
+                  {groupedReminders.custom.thisWeek.length > 0 && (
+                    <>
+                      <h4 className="text-[10px] font-medium text-yellow-600 mb-0.5 mt-1.5">
+                        Diese Woche ({groupedReminders.custom.thisWeek.length})
+                      </h4>
+                      {groupedReminders.custom.thisWeek.slice(0, 3).map((reminder) => (
+                        <ReminderCard
+                          key={reminder.id}
+                          reminder={reminder}
+                          onComplete={async () => {
+                            await fetch(`/api/reminders/${reminder.id}/complete`, { method: "POST" })
+                            loadReminders()
+                          }}
+                          onUncomplete={async () => {
+                            await fetch(`/api/reminders/${reminder.id}/complete`, { method: "PATCH" })
+                            loadReminders()
+                          }}
+                          onEdit={() => {}}
+                          onDelete={async () => {
+                            await fetch(`/api/reminders/${reminder.id}`, { method: "DELETE" })
+                            loadReminders()
+                          }}
+                        />
+                      ))}
+                    </>
+                  )}
+
+                  {groupedReminders.custom.later.length > 0 && (
+                    <>
+                      <h4 className="text-[10px] font-medium text-muted-foreground mb-0.5 mt-1.5">
+                        Später ({groupedReminders.custom.later.length})
+                      </h4>
+                      {groupedReminders.custom.later.slice(0, 2).map((reminder) => (
+                        <ReminderCard
+                          key={reminder.id}
+                          reminder={reminder}
+                          onComplete={async () => {
+                            await fetch(`/api/reminders/${reminder.id}/complete`, { method: "POST" })
+                            loadReminders()
+                          }}
+                          onUncomplete={async () => {
+                            await fetch(`/api/reminders/${reminder.id}/complete`, { method: "PATCH" })
+                            loadReminders()
+                          }}
+                          onEdit={() => {}}
+                          onDelete={async () => {
+                            await fetch(`/api/reminders/${reminder.id}`, { method: "DELETE" })
+                            loadReminders()
+                          }}
+                        />
+                      ))}
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+          </>
         )}
       </CardContent>
     </Card>

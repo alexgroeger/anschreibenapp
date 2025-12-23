@@ -214,3 +214,145 @@ export function isCloudStorageConfigured(): boolean {
   return !!GCS_BUCKET_NAME;
 }
 
+/**
+ * Upload a file to Cloud Storage
+ * Returns the path in Cloud Storage if successful, null otherwise
+ */
+export async function uploadFileToCloud(
+  file: File | Buffer,
+  fileName: string,
+  contentType?: string
+): Promise<string | null> {
+  const bucket = getBucket();
+  if (!bucket) {
+    // If Cloud Storage is not configured, save to local filesystem
+    try {
+      const fs = require('fs');
+      const path = require('path');
+      const uploadsDir = join(process.cwd(), 'data', 'uploads');
+      
+      if (!existsSync(uploadsDir)) {
+        fs.mkdirSync(uploadsDir, { recursive: true });
+      }
+      
+      const filePath = join(uploadsDir, fileName);
+      let buffer: Buffer;
+      if (file instanceof Buffer) {
+        buffer = file;
+      } else {
+        const arrayBuffer = await file.arrayBuffer();
+        buffer = Buffer.from(arrayBuffer);
+      }
+      writeFileSync(filePath, buffer);
+      
+      return `local:${filePath}`;
+    } catch (error) {
+      console.error('Error saving file locally:', error);
+      return null;
+    }
+  }
+
+  try {
+    const filePath = `job-documents/${fileName}`;
+    const bucketFile = bucket.file(filePath);
+    
+    let buffer: Buffer;
+    if (file instanceof Buffer) {
+      buffer = file;
+    } else {
+      const arrayBuffer = await file.arrayBuffer();
+      buffer = Buffer.from(arrayBuffer);
+    }
+    
+    await bucketFile.save(buffer, {
+      metadata: {
+        contentType: contentType || 'application/octet-stream',
+        cacheControl: 'public, max-age=31536000',
+      },
+    });
+    
+    console.log(`File uploaded to Cloud Storage: ${filePath}`);
+    return filePath;
+  } catch (error) {
+    console.error('Error uploading file to Cloud Storage:', error);
+    return null;
+  }
+}
+
+/**
+ * Download a file from Cloud Storage or local filesystem
+ * Returns the file buffer if successful, null otherwise
+ */
+export async function downloadFileFromCloud(filePath: string): Promise<Buffer | null> {
+  // Check if it's a local file
+  if (filePath.startsWith('local:')) {
+    try {
+      const localPath = filePath.replace('local:', '');
+      if (existsSync(localPath)) {
+        return readFileSync(localPath);
+      }
+    } catch (error) {
+      console.error('Error reading local file:', error);
+      return null;
+    }
+  }
+
+  const bucket = getBucket();
+  if (!bucket) {
+    console.error('Cloud Storage not configured and file is not local');
+    return null;
+  }
+
+  try {
+    const file = bucket.file(filePath);
+    const [exists] = await file.exists();
+    
+    if (!exists) {
+      console.error(`File not found in Cloud Storage: ${filePath}`);
+      return null;
+    }
+
+    const [buffer] = await file.download();
+    return buffer;
+  } catch (error) {
+    console.error('Error downloading file from Cloud Storage:', error);
+    return null;
+  }
+}
+
+/**
+ * Get a signed URL for a file in Cloud Storage (for viewing in browser)
+ * Returns the URL if successful, null otherwise
+ * For local files, returns null (they should be served directly via API route)
+ */
+export async function getFileUrl(filePath: string, expiresInMinutes: number = 60): Promise<string | null> {
+  // For local files, return null - they should be served directly via the document API route
+  if (filePath.startsWith('local:')) {
+    return null;
+  }
+
+  const bucket = getBucket();
+  if (!bucket) {
+    return null;
+  }
+
+  try {
+    const file = bucket.file(filePath);
+    const [exists] = await file.exists();
+    
+    if (!exists) {
+      return null;
+    }
+
+    const [url] = await file.getSignedUrl({
+      action: 'read',
+      expires: Date.now() + expiresInMinutes * 60 * 1000,
+    });
+
+    return url;
+  } catch (error) {
+    console.error('Error generating signed URL:', error);
+    return null;
+  }
+}
+

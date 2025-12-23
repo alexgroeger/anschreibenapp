@@ -135,11 +135,13 @@ export async function POST(request: NextRequest) {
       job_description,
       extraction_data,
       match_result,
+      match_score,
       cover_letter,
       status,
       sent_at,
       contacts,
-      deadline
+      deadline,
+      document_info
     } = body;
     
     if (!company || !position) {
@@ -154,8 +156,8 @@ export async function POST(request: NextRequest) {
       // Insert application
       const result = db
         .prepare(`
-          INSERT INTO applications (company, position, job_description, extraction_data, match_result, cover_letter, status, sent_at, deadline)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+          INSERT INTO applications (company, position, job_description, extraction_data, match_result, match_score, cover_letter, status, sent_at, deadline, job_document_filename, job_document_path, job_document_type)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `)
         .run(
           company,
@@ -163,10 +165,14 @@ export async function POST(request: NextRequest) {
           job_description || null,
           extraction_data ? JSON.stringify(extraction_data) : null,
           match_result || null,
+          match_score || null,
           cover_letter || null,
           status || 'in_bearbeitung',
           sent_at || null,
-          deadline || null
+          deadline || null,
+          document_info?.filename || null,
+          document_info?.path || null,
+          document_info?.type || null
         );
       
       const applicationId = Number(result.lastInsertRowid);
@@ -212,10 +218,25 @@ export async function POST(request: NextRequest) {
       .prepare('SELECT * FROM contact_persons WHERE application_id = ?')
       .all(applicationId);
     
-    // Create deadline reminder if deadline exists
-    if (deadline) {
+    // Extract deadline from extraction_data if not explicitly provided
+    let finalDeadline = deadline;
+    if (!finalDeadline && extraction_data) {
       try {
-        await syncDeadlineReminder(applicationId, deadline, company, position);
+        const extraction = typeof extraction_data === 'string' 
+          ? JSON.parse(extraction_data) 
+          : extraction_data;
+        if (extraction?.deadline) {
+          finalDeadline = extraction.deadline;
+        }
+      } catch (error) {
+        console.error('Error parsing extraction_data for deadline:', error);
+      }
+    }
+    
+    // Create deadline reminder if deadline exists (from explicit deadline or extraction_data)
+    if (finalDeadline) {
+      try {
+        await syncDeadlineReminder(applicationId, finalDeadline, company, position);
       } catch (error) {
         console.error('Error syncing deadline reminder:', error);
         // Don't fail the request if reminder creation fails

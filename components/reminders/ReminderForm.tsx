@@ -1,12 +1,13 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Reminder } from "./ReminderCard"
 import { format } from "date-fns"
 
@@ -39,7 +40,7 @@ export function ReminderForm({
     if (reminder) {
       setTitle(reminder.title)
       setDescription(reminder.description || "")
-      setDueDate(format(new Date(reminder.due_date), "yyyy-MM-dd'T'HH:mm"))
+      setDueDate(format(new Date(reminder.due_date), "yyyy-MM-dd"))
       setReminderType(reminder.reminder_type)
       setIsRecurring(reminder.is_recurring === 1)
       setRecurrencePattern((reminder.recurrence_pattern as any) || 'weekly')
@@ -49,9 +50,9 @@ export function ReminderForm({
       // Reset form for new reminder
       setTitle("")
       setDescription("")
-      const now = new Date()
-      now.setHours(now.getHours() + 1) // Default to 1 hour from now
-      setDueDate(format(now, "yyyy-MM-dd'T'HH:mm"))
+      const tomorrow = new Date()
+      tomorrow.setDate(tomorrow.getDate() + 1) // Default to tomorrow
+      setDueDate(format(tomorrow, "yyyy-MM-dd"))
       setReminderType('custom')
       setIsRecurring(false)
       setRecurrencePattern('weekly')
@@ -59,26 +60,40 @@ export function ReminderForm({
       setRecurrenceEndDate("")
     }
   }, [reminder, open])
+  
+  // Update title when reminder type changes to deadline
+  useEffect(() => {
+    if (reminderType === 'deadline' && !reminder) {
+      setTitle('Bewerbungsfrist')
+    }
+  }, [reminderType, reminder])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    if (!title.trim() || !dueDate) {
+    // Für deadline-Typ immer "Bewerbungsfrist" als Titel verwenden
+    const finalTitle = reminderType === 'deadline' ? 'Bewerbungsfrist' : title.trim()
+    
+    if (!finalTitle || !dueDate) {
       alert("Bitte füllen Sie alle Pflichtfelder aus.")
       return
     }
 
     setSaving(true)
     try {
+      // Set time to end of day (23:59:59) for date-only picker
+      const dueDateObj = new Date(dueDate)
+      dueDateObj.setHours(23, 59, 59, 999)
+      
       const reminderData: Partial<Reminder> = {
-        title: title.trim(),
+        title: finalTitle,
         description: description.trim() || null,
-        due_date: new Date(dueDate).toISOString(),
+        due_date: dueDateObj.toISOString(),
         reminder_type: reminderType,
         is_recurring: isRecurring ? 1 : 0,
         recurrence_pattern: isRecurring ? recurrencePattern : null,
         recurrence_interval: isRecurring ? recurrenceInterval : null,
-        recurrence_end_date: isRecurring && recurrenceEndDate ? new Date(recurrenceEndDate).toISOString() : null,
+        recurrence_end_date: isRecurring && recurrenceEndDate ? new Date(recurrenceEndDate + 'T23:59:59').toISOString() : null,
       }
 
       if (applicationId) {
@@ -104,19 +119,42 @@ export function ReminderForm({
           <DialogTitle>
             {reminder ? "Erinnerung bearbeiten" : "Neue Erinnerung erstellen"}
           </DialogTitle>
+          <DialogDescription>
+            {reminder ? "Bearbeiten Sie die Details der Erinnerung." : "Erstellen Sie eine neue Erinnerung für diese Bewerbung."}
+          </DialogDescription>
         </DialogHeader>
         
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="title">Titel *</Label>
-            <Input
-              id="title"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="z.B. Bewerbungsfrist, Nachfassen, Interview vorbereiten"
-              required
-            />
+            <Label>Typ der Erinnerung</Label>
+            <Tabs value={reminderType} onValueChange={(value: string) => {
+              if (value === 'deadline' || value === 'custom') {
+                setReminderType(value)
+                // Automatisch "Bewerbungsfrist" als Titel setzen wenn Typ deadline ist
+                if (value === 'deadline') {
+                  setTitle('Bewerbungsfrist')
+                }
+              }
+            }}>
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="deadline">Bewerbungsfrist</TabsTrigger>
+                <TabsTrigger value="custom">Persönlich</TabsTrigger>
+              </TabsList>
+            </Tabs>
           </div>
+
+          {reminderType === 'custom' && (
+            <div className="space-y-2">
+              <Label htmlFor="title">Titel *</Label>
+              <Input
+                id="title"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="z.B. Nachfassen, Interview vorbereiten"
+                required
+              />
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="description">Beschreibung</Label>
@@ -129,30 +167,15 @@ export function ReminderForm({
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="dueDate">Fälligkeitsdatum *</Label>
-              <Input
-                id="dueDate"
-                type="datetime-local"
-                value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
-                required
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="reminderType">Typ</Label>
-              <Select value={reminderType} onValueChange={(value: 'deadline' | 'custom') => setReminderType(value)}>
-                <SelectTrigger id="reminderType">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="custom">Benutzerdefiniert</SelectItem>
-                  <SelectItem value="deadline">Bewerbungsfrist</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+          <div className="space-y-2">
+            <Label htmlFor="dueDate">Fälligkeitsdatum *</Label>
+            <Input
+              id="dueDate"
+              type="date"
+              value={dueDate}
+              onChange={(e) => setDueDate(e.target.value)}
+              required
+            />
           </div>
 
           <div className="space-y-4 border-t pt-4">

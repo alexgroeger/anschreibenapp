@@ -11,6 +11,20 @@ export async function GET(request: NextRequest) {
     
     const db = getDatabase();
     
+    // Check if reminders table exists
+    try {
+      const tableCheck = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='reminders'").get();
+      if (!tableCheck) {
+        console.error('Reminders table does not exist!');
+        return NextResponse.json(
+          { error: 'Reminders table not found. Database may need to be initialized.' },
+          { status: 500 }
+        );
+      }
+    } catch (checkError) {
+      console.error('Error checking table existence:', checkError);
+    }
+    
     // Build WHERE clause
     const whereConditions: string[] = [];
     const params: any[] = [];
@@ -26,7 +40,9 @@ export async function GET(request: NextRequest) {
     }
     
     if (upcoming) {
-      whereConditions.push('(due_date >= datetime("now") OR next_occurrence >= datetime("now"))');
+      // Filter for upcoming reminders: due_date in the future or next_occurrence in the future
+      // Use CURRENT_TIMESTAMP which is more reliable in SQLite
+      whereConditions.push("(due_date >= CURRENT_TIMESTAMP OR (next_occurrence IS NOT NULL AND next_occurrence >= CURRENT_TIMESTAMP))");
       whereConditions.push('status = ?');
       params.push('pending');
     }
@@ -35,6 +51,7 @@ export async function GET(request: NextRequest) {
       ? `WHERE ${whereConditions.join(' AND ')}` 
       : '';
     
+    // Simplified query - avoid complex date comparisons that might fail
     const query = `
       SELECT 
         id,
@@ -55,22 +72,38 @@ export async function GET(request: NextRequest) {
       FROM reminders
       ${whereClause}
       ORDER BY 
-        CASE 
-          WHEN status = 'pending' AND (due_date < datetime("now") OR next_occurrence < datetime("now")) THEN 0
-          WHEN status = 'pending' AND (due_date = date("now") OR next_occurrence = date("now")) THEN 1
-          WHEN status = 'pending' THEN 2
-          ELSE 3
-        END,
-        COALESCE(next_occurrence, due_date) ASC
+        CASE WHEN status = 'pending' THEN 0 ELSE 1 END,
+        created_at DESC
     `;
     
-    const reminders = db.prepare(query).all(...params) as any[];
+    console.log('Fetching reminders with query:', query);
+    console.log('Params:', params);
+    console.log('Where clause:', whereClause);
+    
+    let reminders: any[];
+    try {
+      const stmt = db.prepare(query);
+      reminders = stmt.all(...params) as any[];
+      console.log('Found reminders:', reminders.length);
+    } catch (queryError) {
+      console.error('Query execution error:', queryError);
+      console.error('Query was:', query);
+      console.error('Params were:', params);
+      throw queryError;
+    }
     
     return NextResponse.json({ reminders }, { status: 200 });
   } catch (error) {
     console.error('Error fetching reminders:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Failed to fetch reminders';
+    const errorStack = error instanceof Error ? error.stack : undefined;
+    console.error('Full error details:', {
+      message: errorMessage,
+      stack: errorStack,
+      error: error
+    });
     return NextResponse.json(
-      { error: 'Failed to fetch reminders' },
+      { error: errorMessage, details: errorStack },
       { status: 500 }
     );
   }
@@ -79,6 +112,8 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
+    console.log('Creating reminder with data:', JSON.stringify(body, null, 2));
+    
     const {
       application_id,
       title,
@@ -87,11 +122,12 @@ export async function POST(request: NextRequest) {
       reminder_type = 'custom',
       is_recurring,
       recurrence_pattern,
-      recurrence_interval = 1,
+      recurrence_interval,
       recurrence_end_date,
     } = body;
     
     if (!title || !due_date) {
+      console.error('Validation failed: missing title or due_date', { title, due_date });
       return NextResponse.json(
         { error: 'Title and due_date are required' },
         { status: 400 }
@@ -125,13 +161,39 @@ export async function POST(request: NextRequest) {
     // Calculate next_occurrence for recurring reminders
     let nextOccurrence = null;
     if (isRecurring && recurrence_pattern) {
-      const dueDate = new Date(due_date);
-      nextOccurrence = calculateNextOccurrence(
-        dueDate,
-        recurrence_pattern,
-        recurrence_interval || 1
-      ).toISOString();
+      try {
+        const dueDate = new Date(due_date);
+        if (isNaN(dueDate.getTime())) {
+          throw new Error('Invalid due_date format');
+        }
+        nextOccurrence = calculateNextOccurrence(
+          dueDate,
+          recurrence_pattern,
+          recurrence_interval || 1
+        ).toISOString();
+      } catch (error) {
+        console.error('Error calculating next occurrence:', error);
+        // Don't fail if next occurrence calculation fails
+      }
     }
+    
+    // Prepare application_id
+    const applicationIdValue = application_id !== null && application_id !== undefined 
+      ? (typeof application_id === 'string' ? parseInt(application_id) : application_id)
+      : null;
+    
+    console.log('Inserting reminder with values:', {
+      application_id: applicationIdValue,
+      title,
+      description: description || null,
+      due_date,
+      reminder_type: reminder_type,
+      is_recurring: isRecurring ? 1 : 0,
+      recurrence_pattern: recurrence_pattern || null,
+      recurrence_interval: isRecurring ? (recurrence_interval || 1) : null,
+      recurrence_end_date: recurrence_end_date || null,
+      next_occurrence: nextOccurrence
+    });
     
     const result = db
       .prepare(`
@@ -150,29 +212,39 @@ export async function POST(request: NextRequest) {
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `)
       .run(
-        application_id !== null && application_id !== undefined 
-          ? (typeof application_id === 'string' ? parseInt(application_id) : application_id)
-          : null,
+        applicationIdValue,
         title,
         description || null,
         due_date,
         reminder_type,
         isRecurring ? 1 : 0,
         recurrence_pattern || null,
-        recurrence_interval || 1,
+        isRecurring ? (recurrence_interval || 1) : null,
         recurrence_end_date || null,
         nextOccurrence
       );
     
     const reminderId = Number(result.lastInsertRowid);
+    console.log('Reminder created with ID:', reminderId);
+    
     const reminder = getCachedStatement('SELECT * FROM reminders WHERE id = ?')
       .get(reminderId) as any;
     
+    if (!reminder) {
+      console.error('Failed to retrieve created reminder');
+      return NextResponse.json(
+        { error: 'Failed to retrieve created reminder' },
+        { status: 500 }
+      );
+    }
+    
+    console.log('Reminder retrieved successfully:', reminder.id);
     return NextResponse.json({ reminder }, { status: 201 });
   } catch (error) {
     console.error('Error creating reminder:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Failed to create reminder';
     return NextResponse.json(
-      { error: 'Failed to create reminder' },
+      { error: errorMessage, details: error instanceof Error ? error.stack : undefined },
       { status: 500 }
     );
   }

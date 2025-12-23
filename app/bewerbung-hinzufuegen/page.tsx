@@ -20,6 +20,7 @@ import { ExtractionDisplay } from "@/components/extraction/ExtractionDisplay"
 import { Markdown } from "@/components/ui/markdown"
 import { WorkflowStepper, type WorkflowStep } from "@/components/workflow/WorkflowStepper"
 import { ArrowLeft } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
 
 export default function BewerbungHinzufuegenPage() {
   const router = useRouter()
@@ -27,7 +28,9 @@ export default function BewerbungHinzufuegenPage() {
   const [jobText, setJobText] = useState("")
   const [uploadedFile, setUploadedFile] = useState<File | null>(null)
   const [extraction, setExtraction] = useState<any>(null)
+  const [documentInfo, setDocumentInfo] = useState<{ filename: string; path: string; type: string } | null>(null)
   const [matchResult, setMatchResult] = useState("")
+  const [matchScore, setMatchScore] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [company, setCompany] = useState("")
   const [position, setPosition] = useState("")
@@ -100,6 +103,11 @@ export default function BewerbungHinzufuegenPage() {
         // If file was uploaded, store the extracted text for matching
         if (data.jobDescription) {
           setJobText(data.jobDescription)
+        }
+        
+        // Store document info if available
+        if (data.documentInfo) {
+          setDocumentInfo(data.documentInfo)
         }
         
         // Extract company and position from extraction data
@@ -189,6 +197,7 @@ export default function BewerbungHinzufuegenPage() {
       if (response.ok) {
         const data = await response.json()
         setMatchResult(data.matchResult)
+        setMatchScore(data.matchScore || null)
         setCurrentStep('matching')
         setError(null)
       } else {
@@ -225,10 +234,12 @@ export default function BewerbungHinzufuegenPage() {
           job_description: jobText,
           extraction_data: extraction,
           match_result: matchResult,
+          match_score: matchScore,
           cover_letter: null, // Kein Anschreiben beim Erstellen
           status: 'in_bearbeitung',
           contacts: extraction?.contacts || [],
           deadline: extraction?.deadline || null,
+          document_info: documentInfo,
         }),
       })
 
@@ -350,10 +361,37 @@ export default function BewerbungHinzufuegenPage() {
             )}
             <Card>
               <CardHeader>
-                <CardTitle>Schritt 3: Matching-Ergebnis</CardTitle>
-                <CardDescription>
-                  Analyse der Übereinstimmung zwischen Ihrem Profil und der Stellenausschreibung
-                </CardDescription>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Schritt 3: Matching-Ergebnis</CardTitle>
+                    <CardDescription>
+                      Analyse der Übereinstimmung zwischen Ihrem Profil und der Stellenausschreibung
+                    </CardDescription>
+                  </div>
+                  {matchScore && (
+                    <Badge 
+                      variant={
+                        matchScore === 'nicht_passend' ? 'destructive' :
+                        matchScore === 'mittel' ? 'outline' :
+                        matchScore === 'gut' ? 'secondary' :
+                        undefined
+                      }
+                      className={
+                        matchScore === 'sehr_gut' 
+                          ? 'border-transparent bg-green-500 text-white hover:bg-green-600'
+                          : undefined
+                      }
+                    >
+                      Passung: {
+                        matchScore === 'nicht_passend' ? 'Nicht passend' :
+                        matchScore === 'mittel' ? 'Mittel' :
+                        matchScore === 'gut' ? 'Gut' :
+                        matchScore === 'sehr_gut' ? 'Sehr gut' :
+                        matchScore
+                      }
+                    </Badge>
+                  )}
+                </div>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="bg-muted p-4 rounded-md max-h-[600px] overflow-y-auto">

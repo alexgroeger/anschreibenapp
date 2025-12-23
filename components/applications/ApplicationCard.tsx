@@ -29,7 +29,7 @@ const statusLabels: Record<string, string> = {
   'in_bearbeitung': 'In Bearbeitung',
   'abgelehnt': 'Abgelehnt',
   'angenommen': 'Angenommen',
-  'rueckmeldung_ausstehend': 'Rückmeldung ausstehend',
+  'rueckmeldung_ausstehend': 'Versandt/Rückmeldung ausstehend',
 }
 
 const statusColors: Record<string, string> = {

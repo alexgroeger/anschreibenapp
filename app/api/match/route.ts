@@ -47,7 +47,30 @@ export async function POST(request: NextRequest) {
       temperature
     );
 
-    return NextResponse.json({ matchResult: text }, { status: 200 });
+    // Extract score from the response
+    let matchScore: string | null = null;
+    let scoreExplanation: string | null = null;
+    let matchResultText = text;
+
+    // Try to extract JSON score from the beginning of the response
+    const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/);
+    if (jsonMatch) {
+      try {
+        const scoreData = JSON.parse(jsonMatch[1]);
+        matchScore = scoreData.score || null;
+        scoreExplanation = scoreData.score_explanation || null;
+        // Remove the JSON block from the text
+        matchResultText = text.replace(/```json\s*[\s\S]*?\s*```\s*/g, '').trim();
+      } catch (error) {
+        console.error('Error parsing score JSON:', error);
+      }
+    }
+
+    return NextResponse.json({ 
+      matchResult: matchResultText,
+      matchScore: matchScore,
+      scoreExplanation: scoreExplanation
+    }, { status: 200 });
   } catch (error: any) {
     console.error('Error matching:', error);
     

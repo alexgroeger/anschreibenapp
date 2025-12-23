@@ -18,11 +18,10 @@ export async function GET(request: NextRequest) {
     
     // Initialize all statuses with 0
     const byStatus = {
-      gesendet: 0,
       in_bearbeitung: 0,
+      rueckmeldung_ausstehend: 0,
       abgelehnt: 0,
-      angenommen: 0,
-      rueckmeldung_ausstehend: 0
+      angenommen: 0
     };
     
     // Fill in actual counts

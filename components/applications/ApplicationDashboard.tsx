@@ -10,7 +10,6 @@ import { Card, CardContent } from "@/components/ui/card"
 import Link from "next/link"
 import { format } from "date-fns"
 import { useRouter } from "next/navigation"
-import { ReminderOverview } from "@/components/reminders/ReminderOverview"
 
 interface Contact {
   id: number
@@ -35,7 +34,7 @@ const statusLabels: Record<string, string> = {
   'in_bearbeitung': 'In Bearbeitung',
   'abgelehnt': 'Abgelehnt',
   'angenommen': 'Angenommen',
-  'rueckmeldung_ausstehend': 'Rückmeldung ausstehend',
+  'rueckmeldung_ausstehend': 'Versandt/Rückmeldung ausstehend',
 }
 
 const statusColors: Record<string, string> = {
@@ -197,9 +196,6 @@ export function ApplicationDashboard() {
 
   return (
     <div className="space-y-6">
-      {/* Reminders Overview */}
-      <ReminderOverview />
-      
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <h2 className="text-2xl font-semibold">Bewerbungen</h2>
         <div className="flex flex-wrap gap-4 w-full sm:w-auto">
@@ -215,9 +211,8 @@ export function ApplicationDashboard() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Alle Status</SelectItem>
-              <SelectItem value="rueckmeldung_ausstehend">Rückmeldung ausstehend</SelectItem>
-              <SelectItem value="gesendet">Gesendet</SelectItem>
               <SelectItem value="in_bearbeitung">In Bearbeitung</SelectItem>
+              <SelectItem value="rueckmeldung_ausstehend">Versandt/Rückmeldung ausstehend</SelectItem>
               <SelectItem value="abgelehnt">Abgelehnt</SelectItem>
               <SelectItem value="angenommen">Angenommen</SelectItem>
             </SelectContent>
@@ -337,9 +332,8 @@ export function ApplicationDashboard() {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="rueckmeldung_ausstehend">Rückmeldung ausstehend</SelectItem>
-                          <SelectItem value="gesendet">Gesendet</SelectItem>
                           <SelectItem value="in_bearbeitung">In Bearbeitung</SelectItem>
+                          <SelectItem value="rueckmeldung_ausstehend">Versandt/Rückmeldung ausstehend</SelectItem>
                           <SelectItem value="abgelehnt">Abgelehnt</SelectItem>
                           <SelectItem value="angenommen">Angenommen</SelectItem>
                         </SelectContent>

@@ -14,7 +14,8 @@ import {
   Redo, 
   Loader2,
   Check,
-  X
+  X,
+  Sparkles
 } from "lucide-react"
 import { CoverLetterChat } from "./CoverLetterChat"
 import { SuggestionList, type Suggestion } from "./SuggestionList"
@@ -524,10 +525,9 @@ export function CoverLetterEditor({
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="kurz">Kurz</SelectItem>
-                        <SelectItem value="mittel">Mittel</SelectItem>
-                        <SelectItem value="lang">Lang</SelectItem>
-                        <SelectItem value="maximal">Maximal (1 A4 Seite)</SelectItem>
+                        <SelectItem value="kurz">Kurz (150-200 Wörter)</SelectItem>
+                        <SelectItem value="mittel">Mittel (200-280 Wörter)</SelectItem>
+                        <SelectItem value="lang">Lang (280-350 Wörter)</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -535,7 +535,6 @@ export function CoverLetterEditor({
 
                 <Button
                   onClick={handleRegenerate}
-                  variant="outline"
                   disabled={regenerating || !application.job_description}
                   size="sm"
                   className="h-9"
@@ -546,7 +545,10 @@ export function CoverLetterEditor({
                       Generiere...
                     </>
                   ) : (
-                    'Generieren'
+                    <>
+                      <Sparkles className="h-4 w-4 mr-2" />
+                      Generieren
+                    </>
                   )}
                 </Button>
               </div>
@@ -596,7 +598,12 @@ export function CoverLetterEditor({
 
               {/* Editor */}
               <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-                <Label htmlFor="editor">Anschreiben</Label>
+                <div className="flex items-center gap-2 mb-1">
+                  <Label htmlFor="editor">Anschreiben</Label>
+                  <span className="text-sm text-muted-foreground">
+                    ({content.trim().split(/\s+/).filter(word => word.length > 0).length} Wörter, {content.length} Zeichen)
+                  </span>
+                </div>
                 <div className="relative flex-1 min-h-[300px] overflow-hidden">
                   <Textarea
                     id="editor"

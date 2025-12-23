@@ -132,23 +132,45 @@ export function initDatabase(): Database.Database {
     );
   `);
   
-  // Add match_result column to applications table if it doesn't exist
-  try {
-    const tableInfo = db.prepare("PRAGMA table_info(applications)").all() as any[];
-    const hasMatchResult = tableInfo.some((col: any) => col.name === 'match_result');
-    if (!hasMatchResult) {
-      db.exec(`ALTER TABLE applications ADD COLUMN match_result TEXT;`);
+    // Add match_result column to applications table if it doesn't exist
+    try {
+      const tableInfo = db.prepare("PRAGMA table_info(applications)").all() as any[];
+      const hasMatchResult = tableInfo.some((col: any) => col.name === 'match_result');
+      if (!hasMatchResult) {
+        db.exec(`ALTER TABLE applications ADD COLUMN match_result TEXT;`);
+      }
+      
+      // Add deadline column to applications table if it doesn't exist
+      const hasDeadline = tableInfo.some((col: any) => col.name === 'deadline');
+      if (!hasDeadline) {
+        db.exec(`ALTER TABLE applications ADD COLUMN deadline DATE;`);
+      }
+      
+      // Add match_score column to applications table if it doesn't exist
+      const hasMatchScore = tableInfo.some((col: any) => col.name === 'match_score');
+      if (!hasMatchScore) {
+        db.exec(`ALTER TABLE applications ADD COLUMN match_score TEXT;`);
+      }
+      
+      // Add job document columns to applications table if they don't exist
+      const hasJobDocumentFilename = tableInfo.some((col: any) => col.name === 'job_document_filename');
+      if (!hasJobDocumentFilename) {
+        db.exec(`ALTER TABLE applications ADD COLUMN job_document_filename TEXT;`);
+      }
+      
+      const hasJobDocumentPath = tableInfo.some((col: any) => col.name === 'job_document_path');
+      if (!hasJobDocumentPath) {
+        db.exec(`ALTER TABLE applications ADD COLUMN job_document_path TEXT;`);
+      }
+      
+      const hasJobDocumentType = tableInfo.some((col: any) => col.name === 'job_document_type');
+      if (!hasJobDocumentType) {
+        db.exec(`ALTER TABLE applications ADD COLUMN job_document_type TEXT;`);
+      }
+    } catch (error) {
+      // Column might already exist, ignore error
+      console.log('Column check:', error);
     }
-    
-    // Add deadline column to applications table if it doesn't exist
-    const hasDeadline = tableInfo.some((col: any) => col.name === 'deadline');
-    if (!hasDeadline) {
-      db.exec(`ALTER TABLE applications ADD COLUMN deadline DATE;`);
-    }
-  } catch (error) {
-    // Column might already exist, ignore error
-    console.log('Column check:', error);
-  }
   
   // Initialize default settings
   const defaultSettings = [

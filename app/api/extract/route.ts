@@ -3,6 +3,7 @@ import { extractPrompt } from '@/prompts/extract';
 import { getSettings } from '@/lib/database/settings';
 import { generateTextWithFallback } from '@/lib/ai/model-helper';
 import { parseFile } from '@/lib/file-parser';
+import { uploadFileToCloud } from '@/lib/storage/sync';
 
 // Force Node.js runtime for file parsing (pdfjs-dist and mammoth require Node.js)
 export const runtime = 'nodejs';
@@ -14,6 +15,9 @@ export async function POST(request: NextRequest) {
 
     // Check if request contains FormData (file upload)
     // Note: multipart/form-data includes boundary, so we check for the prefix
+    let uploadedFile: File | null = null;
+    let documentInfo: { filename: string; path: string; type: string } | null = null;
+    
     if (contentType.includes('multipart/form-data')) {
       let formData: FormData;
       try {
@@ -35,6 +39,8 @@ export async function POST(request: NextRequest) {
         );
       }
 
+      uploadedFile = file;
+
       try {
         // Use the centralized file parser
         jobDescription = await parseFile(file);
@@ -44,6 +50,20 @@ export async function POST(request: NextRequest) {
             { error: 'File appears to be empty or could not be parsed' },
             { status: 400 }
           );
+        }
+        
+        // Save the file to Cloud Storage or local filesystem
+        const timestamp = Date.now();
+        const sanitizedFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+        const fileName = `${timestamp}_${sanitizedFileName}`;
+        const filePath = await uploadFileToCloud(file, fileName, file.type);
+        
+        if (filePath) {
+          documentInfo = {
+            filename: file.name,
+            path: filePath,
+            type: file.type || 'application/octet-stream',
+          };
         }
       } catch (parseError: any) {
         console.error('File parsing error:', parseError);
@@ -197,6 +217,10 @@ export async function POST(request: NextRequest) {
     const response: any = { extraction: extractionData };
     if (contentType.includes('multipart/form-data')) {
       response.jobDescription = jobDescription;
+      // Include document info if file was uploaded
+      if (documentInfo) {
+        response.documentInfo = documentInfo;
+      }
     }
     
     return NextResponse.json(response, { status: 200 });

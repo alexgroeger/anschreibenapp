@@ -9,12 +9,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Markdown } from "@/components/ui/markdown"
 import { format } from "date-fns"
-import { Pencil, Save, X, Building2, Briefcase, Calendar, User, Mail, Phone, ExternalLink, Plus, Trash2, Euro, FileText, MapPin, Clock, FileEdit } from "lucide-react"
+import { Pencil, Save, X, Building2, Briefcase, Calendar, User, Mail, Phone, ExternalLink, Plus, Trash2, Euro, FileText, MapPin, Clock, FileEdit, Download, Eye } from "lucide-react"
 import { CoverLetterEditor } from "@/components/cover-letter/CoverLetterEditor"
 import { ReminderList } from "@/components/reminders/ReminderList"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 
 interface Contact {
   id: number
@@ -31,11 +31,15 @@ interface Application {
   job_description: string | null
   extraction_data: string | null
   match_result: string | null
+  match_score: string | null
   cover_letter: string | null
   status: string
   sent_at: string | null
   created_at: string
   contacts?: Contact[]
+  job_document_filename?: string | null
+  job_document_path?: string | null
+  job_document_type?: string | null
 }
 
 const statusLabels: Record<string, string> = {
@@ -43,7 +47,42 @@ const statusLabels: Record<string, string> = {
   'in_bearbeitung': 'In Bearbeitung',
   'abgelehnt': 'Abgelehnt',
   'angenommen': 'Angenommen',
-  'rueckmeldung_ausstehend': 'Rückmeldung ausstehend',
+  'rueckmeldung_ausstehend': 'Versandt/Rückmeldung ausstehend',
+}
+
+const scoreLabels: Record<string, string> = {
+  'nicht_passend': 'Nicht passend',
+  'mittel': 'Mittel',
+  'gut': 'Gut',
+  'sehr_gut': 'Sehr gut',
+}
+
+const scoreVariants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
+  'nicht_passend': 'destructive',
+  'mittel': 'outline',
+  'gut': 'secondary',
+  'sehr_gut': 'default',
+}
+
+function MatchScoreBadge({ score }: { score: string | null }) {
+  if (!score || !scoreLabels[score]) {
+    return null
+  }
+  
+  // Use green for "sehr_gut"
+  if (score === 'sehr_gut') {
+    return (
+      <Badge className="border-transparent bg-green-500 text-white hover:bg-green-600">
+        Passung: {scoreLabels[score]}
+      </Badge>
+    )
+  }
+  
+  return (
+    <Badge variant={scoreVariants[score] || 'outline'}>
+      Passung: {scoreLabels[score]}
+    </Badge>
+  )
 }
 
 export function ApplicationDetail() {
@@ -69,6 +108,10 @@ export function ApplicationDetail() {
   
   // Cover letter editing state
   const [editedCoverLetter, setEditedCoverLetter] = useState<string | null>(null)
+  
+  // Dialog state for sent_at date
+  const [showSentAtDialog, setShowSentAtDialog] = useState(false)
+  const [dialogSentAt, setDialogSentAt] = useState("")
 
   const loadApplication = useCallback(async () => {
     if (!params?.id) return
@@ -97,6 +140,7 @@ export function ApplicationDetail() {
         data.application.status === 'in_bearbeitung' && 
         !data.application.cover_letter
       setEditorOpen(shouldAutoOpen)
+      
       if (data.application.sent_at) {
         // Format date for input field (YYYY-MM-DD)
         try {
@@ -138,12 +182,49 @@ export function ApplicationDetail() {
 
       if (response.ok) {
         setStatus(statusToUpdate)
-        loadApplication()
+        
+        // Check if status is "rueckmeldung_ausstehend" and sent_at is empty
+        if (statusToUpdate === 'rueckmeldung_ausstehend' && !application.sent_at) {
+          // Set today's date as default
+          const today = format(new Date(), 'yyyy-MM-dd')
+          setDialogSentAt(today)
+          setShowSentAtDialog(true)
+        } else {
+          loadApplication()
+        }
       } else {
         alert('Fehler beim Aktualisieren des Status')
       }
     } catch (error) {
       alert('Fehler beim Aktualisieren des Status')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleSaveSentAtFromDialog = async () => {
+    if (!application) return
+
+    setSaving(true)
+    try {
+      const sentAtValue = dialogSentAt ? new Date(dialogSentAt).toISOString() : null
+      const response = await fetch(`/api/applications/${application.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ sent_at: sentAtValue }),
+      })
+
+      if (response.ok) {
+        setShowSentAtDialog(false)
+        setDialogSentAt("")
+        loadApplication()
+      } else {
+        alert('Fehler beim Speichern des Versanddatums')
+      }
+    } catch (error) {
+      alert('Fehler beim Speichern des Versanddatums')
     } finally {
       setSaving(false)
     }
@@ -337,15 +418,31 @@ export function ApplicationDetail() {
     'rueckmeldung_ausstehend': 'bg-gray-100 text-gray-800 border-gray-200',
   }
 
-  const showSentAtField = status === 'gesendet' || status === 'rueckmeldung_ausstehend'
+  const showSentAtField = status === 'rueckmeldung_ausstehend' || status === 'abgelehnt' || status === 'angenommen'
 
   // Function to convert URLs in text to clickable links
+  // Links at the beginning are shortened
   const linkifyText = (text: string) => {
     const urlRegex = /(https?:\/\/[^\s]+)/g
     const parts = text.split(urlRegex)
     
+    // Check if the text starts with a URL
+    const startsWithUrl = parts.length > 0 && urlRegex.test(parts[0])
+    
     return parts.map((part, index) => {
       if (urlRegex.test(part)) {
+        // Shorten URL if it's at the beginning
+        let displayText = part
+        if (index === 0 && startsWithUrl) {
+          try {
+            const url = new URL(part)
+            displayText = url.hostname + (url.pathname.length > 20 ? url.pathname.substring(0, 20) + '...' : url.pathname)
+          } catch {
+            // If URL parsing fails, just truncate
+            displayText = part.length > 50 ? part.substring(0, 50) + '...' : part
+          }
+        }
+        
         return (
           <a
             key={index}
@@ -353,8 +450,9 @@ export function ApplicationDetail() {
             target="_blank"
             rel="noopener noreferrer"
             className="text-primary hover:underline inline-flex items-center gap-1"
+            title={part}
           >
-            {part}
+            {displayText}
             <ExternalLink className="h-3 w-3" />
           </a>
         )
@@ -391,37 +489,38 @@ export function ApplicationDetail() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main content - left side */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Matching Tab */}
-          <Tabs defaultValue="matching" className="w-full">
-            <TabsList className="grid w-full grid-cols-1">
-              <TabsTrigger value="matching">Matching</TabsTrigger>
-            </TabsList>
-            
-            {/* Matching Tab */}
-            <TabsContent value="matching" className="mt-4">
-              {application.match_result ? (
-                <Card>
-                  <CardHeader>
+          {/* Reminders */}
+          <div className="space-y-2">
+            <ReminderList applicationId={application.id} />
+          </div>
+
+          {/* Matching Ergebnis */}
+          {application.match_result ? (
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
                     <CardTitle>Matching-Ergebnis</CardTitle>
                     <CardDescription>
                       Analyse der Übereinstimmung zwischen Ihrem Profil und der Stellenausschreibung
                     </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="bg-muted p-4 rounded-md max-h-[600px] overflow-y-auto">
-                      <Markdown content={application.match_result} />
-                    </div>
-                  </CardContent>
-                </Card>
-              ) : (
-                <Card>
-                  <CardContent className="py-8 text-center text-muted-foreground">
-                    <p>Noch kein Matching-Ergebnis vorhanden</p>
-                  </CardContent>
-                </Card>
-              )}
-            </TabsContent>
-          </Tabs>
+                  </div>
+                  <MatchScoreBadge score={application.match_score} />
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="bg-muted p-4 rounded-md max-h-[600px] overflow-y-auto">
+                  <Markdown content={application.match_result} />
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardContent className="py-8 text-center text-muted-foreground">
+                <p>Noch kein Matching-Ergebnis vorhanden</p>
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         {/* Sidebar - right side */}
@@ -440,9 +539,8 @@ export function ApplicationDetail() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="rueckmeldung_ausstehend">Rückmeldung ausstehend</SelectItem>
-                <SelectItem value="gesendet">Gesendet</SelectItem>
                 <SelectItem value="in_bearbeitung">In Bearbeitung</SelectItem>
+                <SelectItem value="rueckmeldung_ausstehend">Versandt/Rückmeldung ausstehend</SelectItem>
                 <SelectItem value="abgelehnt">Abgelehnt</SelectItem>
                 <SelectItem value="angenommen">Angenommen</SelectItem>
               </SelectContent>
@@ -760,9 +858,48 @@ export function ApplicationDetail() {
                 <Briefcase className="h-3 w-3" />
                 Jobbeschreibung
               </label>
-              <div className="text-xs whitespace-pre-wrap bg-muted p-2.5 rounded-md border max-h-64 overflow-y-auto break-words">
-                {linkifyText(application.job_description)}
-              </div>
+              {/* If document exists, show only download/view buttons, otherwise show text */}
+              {application.job_document_path && application.job_document_filename ? (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <FileText className="h-3 w-3" />
+                    <span className="font-medium">{application.job_document_filename}</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        window.open(`/api/applications/${application.id}/document?view=true`, '_blank')
+                      }}
+                      className="flex items-center gap-2"
+                    >
+                      <Eye className="h-3 w-3" />
+                      Im Browser öffnen
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const link = document.createElement('a')
+                        link.href = `/api/applications/${application.id}/document`
+                        link.download = application.job_document_filename || 'document'
+                        document.body.appendChild(link)
+                        link.click()
+                        document.body.removeChild(link)
+                      }}
+                      className="flex items-center gap-2"
+                    >
+                      <Download className="h-3 w-3" />
+                      Herunterladen
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-xs whitespace-pre-wrap bg-muted p-2.5 rounded-md border max-h-64 overflow-y-auto break-words">
+                  {linkifyText(application.job_description)}
+                </div>
+              )}
             </div>
           )}
 
@@ -868,11 +1005,6 @@ export function ApplicationDetail() {
               {application.created_at ? format(new Date(application.created_at), 'dd.MM.yyyy HH:mm') : 'Unbekannt'}
             </p>
           </div>
-
-          {/* Reminders */}
-          <div className="space-y-2 pt-4 border-t">
-            <ReminderList applicationId={application.id} />
-          </div>
         </div>
       </div>
 
@@ -885,6 +1017,48 @@ export function ApplicationDetail() {
           onSave={handleSaveCoverLetter}
         />
       )}
+
+      {/* Dialog for sent_at date */}
+      <Dialog open={showSentAtDialog} onOpenChange={setShowSentAtDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Versanddatum hinterlegen</DialogTitle>
+            <DialogDescription>
+              Bitte geben Sie das Datum an, an dem die Bewerbung versendet wurde.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="dialog-sent-at">Versendet am</Label>
+              <Input
+                id="dialog-sent-at"
+                type="date"
+                value={dialogSentAt}
+                onChange={(e) => setDialogSentAt(e.target.value)}
+                className="w-full"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowSentAtDialog(false)
+                setDialogSentAt("")
+              }}
+              disabled={saving}
+            >
+              Abbrechen
+            </Button>
+            <Button
+              onClick={handleSaveSentAtFromDialog}
+              disabled={saving || !dialogSentAt}
+            >
+              {saving ? 'Speichern...' : 'Speichern'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

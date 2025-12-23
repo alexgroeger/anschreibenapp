@@ -33,10 +33,9 @@ Erstelle ein Anschreiben, das:
 7. Die gewünschte Betonung ({emphasis}) berücksichtigt
 
 **Textlänge-Richtlinien:**
-- Kurz (200-300 Wörter): Prägnant, fokussiert auf Kernpunkte
-- Mittel (300-400 Wörter): Ausgewogen, alle wichtigen Aspekte abgedeckt
-- Lang (400-500 Wörter): Detailliert, umfassende Darstellung
-- Maximal (1 A4 Seite): Immer maximal eine A4-Seite Text, abzüglich des Briefkopfs oben. Sehr kompakt und präzise, alle wichtigen Punkte auf den Punkt gebracht
+- Kurz (150-200 Wörter): Prägnant, fokussiert auf Kernpunkte
+- Mittel (200-280 Wörter): Ausgewogen, alle wichtigen Aspekte abgedeckt
+- Lang (280-350 Wörter): Detailliert, umfassende Darstellung
 
 **Formalität-Richtlinien:**
 - Sehr formal: Höflich, distanziert, traditionelle Anredeformen

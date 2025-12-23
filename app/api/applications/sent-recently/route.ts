@@ -4,41 +4,84 @@ import { getDatabase } from '@/lib/database/client';
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const days = parseInt(searchParams.get('days') || '7');
-    
-    if (isNaN(days) || days < 1) {
-      return NextResponse.json(
-        { error: 'Invalid days parameter' },
-        { status: 400 }
-      );
-    }
+    const period = searchParams.get('period'); // '7days', '14days', 'month'
     
     const db = getDatabase();
     
-    // Get applications sent exactly X days ago
-    // Calculate target date: today minus X days
-    const targetDate = new Date();
-    targetDate.setDate(targetDate.getDate() - days);
-    const targetDateStr = targetDate.toISOString().split('T')[0]; // YYYY-MM-DD format
+    let query = '';
+    let params: any[] = [];
     
-    const query = `
-      SELECT 
-        a.id,
-        a.company,
-        a.position,
-        a.status,
-        a.sent_at,
-        a.created_at,
-        a.updated_at,
-        a.deadline
-      FROM applications a
-      WHERE a.sent_at IS NOT NULL
-        AND date(a.sent_at) = ?
-      ORDER BY a.sent_at DESC
-      LIMIT 100
-    `;
+    if (period === 'month') {
+      // Get applications sent in the current month
+      const now = new Date();
+      const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+      
+      const startDate = firstDayOfMonth.toISOString().split('T')[0];
+      const endDate = lastDayOfMonth.toISOString().split('T')[0];
+      
+      query = `
+        SELECT 
+          a.id,
+          a.company,
+          a.position,
+          a.status,
+          a.sent_at,
+          a.created_at,
+          a.updated_at,
+          a.deadline
+        FROM applications a
+        WHERE a.sent_at IS NOT NULL
+          AND date(a.sent_at) >= ?
+          AND date(a.sent_at) <= ?
+        ORDER BY a.sent_at DESC
+        LIMIT 100
+      `;
+      params = [startDate, endDate];
+    } else {
+      // Default: use days parameter for backward compatibility
+      const days = parseInt(searchParams.get('days') || '7');
+      
+      if (isNaN(days) || days < 1) {
+        return NextResponse.json(
+          { error: 'Invalid days parameter' },
+          { status: 400 }
+        );
+      }
+      
+      // Get applications sent approximately X days ago (within a range of ±1 day)
+      // This makes it more likely to find results
+      const targetDate = new Date();
+      targetDate.setDate(targetDate.getDate() - days);
+      const startDate = new Date(targetDate);
+      startDate.setDate(startDate.getDate() - 1);
+      const endDate = new Date(targetDate);
+      endDate.setDate(endDate.getDate() + 1);
+      
+      const startDateStr = startDate.toISOString().split('T')[0];
+      const endDateStr = endDate.toISOString().split('T')[0];
+      
+      query = `
+        SELECT 
+          a.id,
+          a.company,
+          a.position,
+          a.status,
+          a.sent_at,
+          a.created_at,
+          a.updated_at,
+          a.deadline
+        FROM applications a
+        WHERE a.sent_at IS NOT NULL
+          AND date(a.sent_at) >= ?
+          AND date(a.sent_at) <= ?
+        ORDER BY a.sent_at DESC
+        LIMIT 100
+      `;
+      params = [startDateStr, endDateStr];
+    }
     
-    const applications = db.prepare(query).all(targetDateStr) as any[];
+    const applications = db.prepare(query).all(...params) as any[];
     
     // Load contacts for these applications
     const applicationIds = applications.map((app: any) => app.id);
