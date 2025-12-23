@@ -4,6 +4,13 @@ import { useState, useEffect, useCallback } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { format, differenceInDays } from "date-fns"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
@@ -82,20 +89,23 @@ export function DashboardOverview() {
   const [stats, setStats] = useState<Stats | null>(null)
   const [inProgress, setInProgress] = useState<Application[]>([])
   const [sent7Days, setSent7Days] = useState<Application[]>([])
-  const [sent14Days, setSent14Days] = useState<Application[]>([])
+  const [sent8to14Days, setSent8to14Days] = useState<Application[]>([])
   const [sentThisMonth, setSentThisMonth] = useState<Application[]>([])
   const [openTasks, setOpenTasks] = useState<Application[]>([])
+  const [selectedApplications, setSelectedApplications] = useState<Application[]>([])
+  const [dialogTitle, setDialogTitle] = useState<string>("")
+  const [isDialogOpen, setIsDialogOpen] = useState(false)
 
   const loadData = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
       // Load all data in parallel
-      const [statsRes, inProgressRes, sent7Res, sent14Res, sentMonthRes, openTasksRes] = await Promise.all([
+      const [statsRes, inProgressRes, sent7Res, sent8to14Res, sentMonthRes, openTasksRes] = await Promise.all([
         fetch('/api/applications/stats'),
         fetch('/api/applications/in-progress'),
         fetch('/api/applications/sent-recently?days=7'),
-        fetch('/api/applications/sent-recently?days=14'),
+        fetch('/api/applications/sent-recently?days=14&excludeLast=7'), // Letzte 8-14 Tage (ohne die letzten 7)
         fetch('/api/applications/sent-recently?period=month'),
         fetch('/api/applications/open-tasks'),
       ])
@@ -148,18 +158,18 @@ export function DashboardOverview() {
         }
       }
 
-      // Sent 14 Days
-      if (!sent14Res.ok) {
-        const errorData = await sent14Res.json().catch(() => ({ error: 'Unknown error' }))
-        errors.push(`Sent 14 days: ${errorData.error || sent14Res.statusText}`)
-        console.error('Error fetching sent 14 days:', errorData)
+      // Sent 8-14 Days
+      if (!sent8to14Res.ok) {
+        const errorData = await sent8to14Res.json().catch(() => ({ error: 'Unknown error' }))
+        errors.push(`Sent 8-14 days: ${errorData.error || sent8to14Res.statusText}`)
+        console.error('Error fetching sent 8-14 days:', errorData)
       } else {
         try {
-          const sent14Data = await sent14Res.json()
-          setSent14Days(sent14Data.applications || [])
+          const sent8to14Data = await sent8to14Res.json()
+          setSent8to14Days(sent8to14Data.applications || [])
         } catch (e) {
-          errors.push('Sent 14 days: Invalid JSON response')
-          console.error('Error parsing sent 14 days JSON:', e)
+          errors.push('Sent 8-14 days: Invalid JSON response')
+          console.error('Error parsing sent 8-14 days JSON:', e)
         }
       }
 
@@ -358,44 +368,47 @@ export function DashboardOverview() {
         </div>
       )}
 
-      {/* Aktuell in Arbeit mit Status-Cards Sidebar */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
-        {/* Aktuell in Arbeit - Hauptbereich */}
-        <div className="lg:col-span-3">
-          <Card>
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Briefcase className="h-4 w-4" />
-                  Aktuell in Arbeit
-                </CardTitle>
-                <span className="text-xs text-muted-foreground">
-                  {inProgress.length} {inProgress.length === 1 ? "Bewerbung" : "Bewerbungen"}
-                </span>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-1">
-              {inProgress.length === 0 ? (
-                <p className="text-xs text-muted-foreground text-center py-3">
-                  Keine Bewerbungen in Arbeit
+      {/* Aktuell in Arbeit */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Briefcase className="h-4 w-4" />
+              Aktuell in Arbeit
+            </CardTitle>
+            <span className="text-xs text-muted-foreground">
+              {inProgress.length} {inProgress.length === 1 ? "Bewerbung" : "Bewerbungen"}
+            </span>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-1">
+          {inProgress.length === 0 ? (
+            <p className="text-xs text-muted-foreground text-center py-3">
+              Keine Bewerbungen in Arbeit
+            </p>
+          ) : (
+            <>
+              {inProgress.slice(0, 10).map((app) => renderApplicationRow(app))}
+              {inProgress.length > 10 && (
+                <p className="text-xs text-muted-foreground text-center pt-1">
+                  ... und {inProgress.length - 10} weitere
                 </p>
-              ) : (
-                <>
-                  {inProgress.slice(0, 10).map((app) => renderApplicationRow(app))}
-                  {inProgress.length > 10 && (
-                    <p className="text-xs text-muted-foreground text-center pt-1">
-                      ... und {inProgress.length - 10} weitere
-                    </p>
-                  )}
-                </>
               )}
-            </CardContent>
-          </Card>
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Anstehende Erinnerungen mit Status-Cards Sidebar */}
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+        {/* Erinnerungen - Hauptbereich */}
+        <div className="lg:col-span-3">
+          <ReminderOverview />
         </div>
 
-        {/* Status Cards - Sidebar 2x2 */}
+        {/* Status Cards - Sidebar 4x1 */}
         <div className="lg:col-span-1">
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 gap-2">
             {stats && Object.entries(stats.byStatus).map(([status, count]) => {
               const Icon = statusIcons[status] || FileText
               return (
@@ -418,9 +431,6 @@ export function DashboardOverview() {
         </div>
       </div>
 
-      {/* Anstehende Erinnerungen */}
-      <ReminderOverview />
-
       {/* Vor 7 und 14 Tagen versendet + Aktueller Monat - Grafik */}
       <Card>
         <CardHeader>
@@ -429,7 +439,7 @@ export function DashboardOverview() {
               <Clock className="h-5 w-5" />
               <CardTitle>Versendete Bewerbungen</CardTitle>
             </div>
-            <Badge variant="outline">{sent7Days.length + sent14Days.length + sentThisMonth.length}</Badge>
+            <Badge variant="outline">{sent7Days.length + sent8to14Days.length + sentThisMonth.length}</Badge>
           </div>
         </CardHeader>
         <CardContent>
@@ -440,53 +450,74 @@ export function DashboardOverview() {
               <div className="flex flex-col items-center gap-2 flex-1">
                 <div className="relative w-full flex flex-col items-center">
                   <div 
-                    className="w-full bg-blue-500 rounded-t transition-all hover:bg-blue-600 cursor-pointer"
+                    onClick={() => {
+                      if (sent7Days.length > 0) {
+                        setSelectedApplications(sent7Days)
+                        setDialogTitle("Letzte 7 Tage versendet")
+                        setIsDialogOpen(true)
+                      }
+                    }}
+                    className={`w-full bg-blue-500 rounded-t transition-all hover:bg-blue-600 ${sent7Days.length > 0 ? 'cursor-pointer' : 'cursor-default'}`}
                     style={{ 
                       height: `${(() => {
-                        const max = Math.max(sent7Days.length, sent14Days.length, sentThisMonth.length, 1);
+                        const max = Math.max(sent7Days.length, sent8to14Days.length, sentThisMonth.length, 1);
                         return sent7Days.length > 0 ? Math.max((sent7Days.length / max) * 150, 30) : 0;
                       })()}px`,
                       minHeight: sent7Days.length > 0 ? '30px' : '0px'
                     }}
-                    title={`${sent7Days.length} Bewerbungen vor 7 Tagen versendet`}
+                    title={`${sent7Days.length} Bewerbungen in den letzten 7 Tagen versendet${sent7Days.length > 0 ? ' - Klicken zum Anzeigen' : ''}`}
                   />
                   <span className="text-2xl font-bold mt-2">{sent7Days.length}</span>
                 </div>
-                <span className="text-sm text-muted-foreground">Vor 7 Tagen</span>
+                <span className="text-sm text-muted-foreground">Letzte 7 Tage</span>
               </div>
               
-              {/* Vor 14 Tagen */}
+              {/* Letzte 8-14 Tage */}
               <div className="flex flex-col items-center gap-2 flex-1">
                 <div className="relative w-full flex flex-col items-center">
                   <div 
-                    className="w-full bg-orange-500 rounded-t transition-all hover:bg-orange-600 cursor-pointer"
+                    onClick={() => {
+                      if (sent8to14Days.length > 0) {
+                        setSelectedApplications(sent8to14Days)
+                        setDialogTitle("Letzte 8-14 Tage versendet")
+                        setIsDialogOpen(true)
+                      }
+                    }}
+                    className={`w-full bg-orange-500 rounded-t transition-all hover:bg-orange-600 ${sent8to14Days.length > 0 ? 'cursor-pointer' : 'cursor-default'}`}
                     style={{ 
                       height: `${(() => {
-                        const max = Math.max(sent7Days.length, sent14Days.length, sentThisMonth.length, 1);
-                        return sent14Days.length > 0 ? Math.max((sent14Days.length / max) * 150, 30) : 0;
+                        const max = Math.max(sent7Days.length, sent8to14Days.length, sentThisMonth.length, 1);
+                        return sent8to14Days.length > 0 ? Math.max((sent8to14Days.length / max) * 150, 30) : 0;
                       })()}px`,
-                      minHeight: sent14Days.length > 0 ? '30px' : '0px'
+                      minHeight: sent8to14Days.length > 0 ? '30px' : '0px'
                     }}
-                    title={`${sent14Days.length} Bewerbungen vor 14 Tagen versendet`}
+                    title={`${sent8to14Days.length} Bewerbungen in den letzten 8-14 Tagen versendet${sent8to14Days.length > 0 ? ' - Klicken zum Anzeigen' : ''}`}
                   />
-                  <span className="text-2xl font-bold mt-2">{sent14Days.length}</span>
+                  <span className="text-2xl font-bold mt-2">{sent8to14Days.length}</span>
                 </div>
-                <span className="text-sm text-muted-foreground">Vor 14 Tagen</span>
+                <span className="text-sm text-muted-foreground">Letzte 8-14 Tage</span>
               </div>
 
               {/* Aktueller Monat */}
               <div className="flex flex-col items-center gap-2 flex-1">
                 <div className="relative w-full flex flex-col items-center">
                   <div 
-                    className="w-full bg-green-500 rounded-t transition-all hover:bg-green-600 cursor-pointer"
+                    onClick={() => {
+                      if (sentThisMonth.length > 0) {
+                        setSelectedApplications(sentThisMonth)
+                        setDialogTitle("Aktueller Monat versendet")
+                        setIsDialogOpen(true)
+                      }
+                    }}
+                    className={`w-full bg-green-500 rounded-t transition-all hover:bg-green-600 ${sentThisMonth.length > 0 ? 'cursor-pointer' : 'cursor-default'}`}
                     style={{ 
                       height: `${(() => {
-                        const max = Math.max(sent7Days.length, sent14Days.length, sentThisMonth.length, 1);
+                        const max = Math.max(sent7Days.length, sent8to14Days.length, sentThisMonth.length, 1);
                         return sentThisMonth.length > 0 ? Math.max((sentThisMonth.length / max) * 150, 30) : 0;
                       })()}px`,
                       minHeight: sentThisMonth.length > 0 ? '30px' : '0px'
                     }}
-                    title={`${sentThisMonth.length} Bewerbungen im aktuellen Monat versendet`}
+                    title={`${sentThisMonth.length} Bewerbungen im aktuellen Monat versendet${sentThisMonth.length > 0 ? ' - Klicken zum Anzeigen' : ''}`}
                   />
                   <span className="text-2xl font-bold mt-2">{sentThisMonth.length}</span>
                 </div>
@@ -498,11 +529,11 @@ export function DashboardOverview() {
             <div className="flex justify-center gap-6 text-sm flex-wrap">
               <div className="flex items-center gap-2">
                 <div className="w-4 h-4 bg-blue-500 rounded"></div>
-                <span>Vor 7 Tagen ({sent7Days.length})</span>
+                <span>Letzte 7 Tage ({sent7Days.length})</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-4 h-4 bg-orange-500 rounded"></div>
-                <span>Vor 14 Tagen ({sent14Days.length})</span>
+                <span>Letzte 8-14 Tage ({sent8to14Days.length})</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-4 h-4 bg-green-500 rounded"></div>
@@ -541,6 +572,27 @@ export function DashboardOverview() {
           )}
         </CardContent>
       </Card>
+
+      {/* Dialog für versendete Bewerbungen */}
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{dialogTitle}</DialogTitle>
+            <DialogDescription>
+              {selectedApplications.length} {selectedApplications.length === 1 ? "Bewerbung" : "Bewerbungen"}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 mt-4">
+            {selectedApplications.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                Keine Bewerbungen gefunden
+              </p>
+            ) : (
+              selectedApplications.map((app) => renderApplicationRow(app))
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

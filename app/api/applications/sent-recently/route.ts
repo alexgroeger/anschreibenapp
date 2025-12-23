@@ -41,6 +41,7 @@ export async function GET(request: NextRequest) {
     } else {
       // Default: use days parameter for backward compatibility
       const days = parseInt(searchParams.get('days') || '7');
+      const excludeLast = parseInt(searchParams.get('excludeLast') || '0');
       
       if (isNaN(days) || days < 1) {
         return NextResponse.json(
@@ -49,14 +50,12 @@ export async function GET(request: NextRequest) {
         );
       }
       
-      // Get applications sent approximately X days ago (within a range of ±1 day)
-      // This makes it more likely to find results
-      const targetDate = new Date();
-      targetDate.setDate(targetDate.getDate() - days);
-      const startDate = new Date(targetDate);
-      startDate.setDate(startDate.getDate() - 1);
-      const endDate = new Date(targetDate);
-      endDate.setDate(endDate.getDate() + 1);
+      // Get applications sent in the last X days (not "X days ago", but "within the last X days")
+      // If excludeLast is set, exclude the last N days (e.g., for "8-14 days ago", exclude last 7)
+      const endDate = new Date();
+      endDate.setDate(endDate.getDate() - excludeLast); // Exclude the last N days
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - days - excludeLast);
       
       const startDateStr = startDate.toISOString().split('T')[0];
       const endDateStr = endDate.toISOString().split('T')[0];
