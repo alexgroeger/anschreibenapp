@@ -358,61 +358,68 @@ export function DashboardOverview() {
         </div>
       )}
 
-      {/* Aktuell in Arbeit */}
-      <Card>
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Briefcase className="h-4 w-4" />
-              Aktuell in Arbeit
-            </CardTitle>
-            <span className="text-xs text-muted-foreground">
-              {inProgress.length} {inProgress.length === 1 ? "Bewerbung" : "Bewerbungen"}
-            </span>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-1">
-          {inProgress.length === 0 ? (
-            <p className="text-xs text-muted-foreground text-center py-3">
-              Keine Bewerbungen in Arbeit
-            </p>
-          ) : (
-            <>
-              {inProgress.slice(0, 10).map((app) => renderApplicationRow(app))}
-              {inProgress.length > 10 && (
-                <p className="text-xs text-muted-foreground text-center pt-1">
-                  ... und {inProgress.length - 10} weitere
+      {/* Aktuell in Arbeit mit Status-Cards Sidebar */}
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+        {/* Aktuell in Arbeit - Hauptbereich */}
+        <div className="lg:col-span-3">
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Briefcase className="h-4 w-4" />
+                  Aktuell in Arbeit
+                </CardTitle>
+                <span className="text-xs text-muted-foreground">
+                  {inProgress.length} {inProgress.length === 1 ? "Bewerbung" : "Bewerbungen"}
+                </span>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-1">
+              {inProgress.length === 0 ? (
+                <p className="text-xs text-muted-foreground text-center py-3">
+                  Keine Bewerbungen in Arbeit
                 </p>
+              ) : (
+                <>
+                  {inProgress.slice(0, 10).map((app) => renderApplicationRow(app))}
+                  {inProgress.length > 10 && (
+                    <p className="text-xs text-muted-foreground text-center pt-1">
+                      ... und {inProgress.length - 10} weitere
+                    </p>
+                  )}
+                </>
               )}
-            </>
-          )}
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Status Cards - Sidebar 2x2 */}
+        <div className="lg:col-span-1">
+          <div className="grid grid-cols-2 gap-2">
+            {stats && Object.entries(stats.byStatus).map(([status, count]) => {
+              const Icon = statusIcons[status] || FileText
+              return (
+                <Card key={status} className="hover:shadow-md transition-shadow">
+                  <CardHeader className="pb-2 pt-3">
+                    <div className="flex items-center justify-between mb-1">
+                      <Icon className="h-4 w-4 text-muted-foreground" />
+                      <Badge className={`${statusColors[status]} text-xs px-1.5 py-0 h-5`}>
+                        {count}
+                      </Badge>
+                    </div>
+                    <CardTitle className="text-xs font-medium leading-tight">
+                      {statusLabels[status]}
+                    </CardTitle>
+                  </CardHeader>
+                </Card>
+              )
+            })}
+          </div>
+        </div>
+      </div>
 
       {/* Anstehende Erinnerungen */}
       <ReminderOverview />
-
-      {/* Status Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        {stats && Object.entries(stats.byStatus).map(([status, count]) => {
-          const Icon = statusIcons[status] || FileText
-          return (
-            <Card key={status} className="hover:shadow-md transition-shadow">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <Icon className="h-5 w-5 text-muted-foreground" />
-                  <Badge className={statusColors[status]}>
-                    {count}
-                  </Badge>
-                </div>
-                <CardTitle className="text-sm font-medium mt-2">
-                  {statusLabels[status]}
-                </CardTitle>
-              </CardHeader>
-            </Card>
-          )
-        })}
-      </div>
 
       {/* Vor 7 und 14 Tagen versendet + Aktueller Monat - Grafik */}
       <Card>
