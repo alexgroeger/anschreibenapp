@@ -1,3 +1,15 @@
+// These modules are loaded at runtime using require() since they're CommonJS
+// This file is only used in API routes with runtime = 'nodejs', so require() is available
+const getPdfParse = () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  return require('pdf-parse');
+};
+
+const getMammoth = () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  return require('mammoth');
+};
+
 /**
  * Parse a PDF file and extract text content
  */
@@ -5,12 +17,19 @@ export async function parsePDF(file: File): Promise<string> {
   const arrayBuffer = await file.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
   
-  // Dynamic import to avoid issues with native dependencies
-  const pdfParseModule = await import('pdf-parse');
-  // pdf-parse doesn't have a default export, use the module directly
-  const pdfParse = 'default' in pdfParseModule ? pdfParseModule.default : pdfParseModule as any;
-  const data = await pdfParse(buffer);
-  return data.text;
+  try {
+    const pdfParse = getPdfParse();
+    const data = await pdfParse(buffer);
+    return data.text;
+  } catch (error: any) {
+    console.error('PDF parsing error:', error);
+    console.error('Error details:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name,
+    });
+    throw new Error(`Failed to parse PDF: ${error.message || 'Unknown error'}`);
+  }
 }
 
 /**
@@ -26,12 +45,19 @@ export async function parseTXT(file: File): Promise<string> {
 export async function parseDOCX(file: File): Promise<string> {
   const arrayBuffer = await file.arrayBuffer();
   
-  // Dynamic import to avoid issues with native dependencies
-  const mammothModule = await import('mammoth');
-  // mammoth has a default export
-  const mammoth = 'default' in mammothModule ? mammothModule.default : mammothModule as any;
-  const result = await mammoth.extractRawText({ arrayBuffer });
-  return result.value;
+  try {
+    const mammoth = getMammoth();
+    const result = await mammoth.extractRawText({ arrayBuffer });
+    return result.value;
+  } catch (error: any) {
+    console.error('DOCX parsing error:', error);
+    console.error('Error details:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name,
+    });
+    throw new Error(`Failed to parse DOCX: ${error.message || 'Unknown error'}`);
+  }
 }
 
 /**

@@ -4,6 +4,7 @@ import { streamText } from 'ai';
 import { getGoogleApiKey } from '@/lib/ai/api-key';
 import { getDatabase } from '@/lib/database/client';
 import { getSettings } from '@/lib/database/settings';
+import { parseParagraphs } from '@/lib/paragraph-parser';
 
 export async function POST(request: NextRequest) {
   try {
@@ -42,11 +43,18 @@ export async function POST(request: NextRequest) {
       const resumeData = db.prepare('SELECT * FROM resume ORDER BY updated_at DESC LIMIT 1').get() as any;
       const resume = resumeData?.content || 'Kein Lebenslauf hinterlegt.';
 
+      // Parse paragraphs from current cover letter for context
+      const paragraphs = parseParagraphs(coverLetter);
+      const paragraphInfo = paragraphs.map((p, i) => `Absatz ${i + 1}: ${p.text.substring(0, 100)}${p.text.length > 100 ? '...' : ''}`).join('\n');
+
       // Build system prompt with context
       const systemPrompt = `Du bist ein Experte für Bewerbungsschreiben. Du hilfst dem Nutzer dabei, sein Anschreiben zu verbessern.
 
 **Kontext:**
-- Aktuelles Anschreiben: ${coverLetter}
+- Aktuelles Anschreiben (in Absätzen getrennt durch doppelte Zeilenschaltung):
+${paragraphInfo}
+
+- Vollständiges Anschreiben: ${coverLetter}
 - Jobbeschreibung: ${jobDescription || 'Nicht verfügbar'}
 - Matching-Ergebnis: ${matchResult || 'Nicht verfügbar'}
 - Lebenslauf: ${resume.substring(0, 1000)}${resume.length > 1000 ? '...' : ''}
@@ -56,8 +64,13 @@ ${extraction ? `- Extraktionsdaten: ${JSON.stringify(extraction).substring(0, 50
 - Beantworte Fragen zum Anschreiben
 - Gib konstruktives Feedback
 - Vorschläge für Verbesserungen
-- Wenn der Nutzer Änderungen wünscht, gib das vollständige überarbeitete Anschreiben zurück
-- Wenn du das Anschreiben änderst, gib NUR das neue Anschreiben zurück, ohne zusätzliche Erklärungen (außer der Nutzer fragt explizit danach)
+
+**Wichtig für Änderungen:**
+- Wenn der Nutzer Änderungen an spezifischen Absätzen wünscht, gib nur die geänderten Absätze zurück
+- Absätze werden durch doppelte Zeilenschaltung (\\n\\n) getrennt
+- Wenn du das gesamte Anschreiben änderst, gib das vollständige überarbeitete Anschreiben zurück
+- Wenn du nur einzelne Absätze änderst, gib diese Absätze mit Kontext zurück (z.B. "Absatz 2: [neuer Text]")
+- Wenn du das Anschreiben änderst, gib NUR das neue/geänderte Anschreiben zurück, ohne zusätzliche Erklärungen (außer der Nutzer fragt explizit danach)
 - Antworte auf Deutsch`;
 
       // Convert messages to AI SDK format - handle both old and new message formats

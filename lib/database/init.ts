@@ -88,6 +88,29 @@ export function initDatabase(): Database.Database {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (resume_id) REFERENCES resume(id) ON DELETE CASCADE
     );
+
+    CREATE TABLE IF NOT EXISTS cover_letter_versions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      application_id INTEGER NOT NULL,
+      content TEXT NOT NULL,
+      version_number INTEGER NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      created_by TEXT DEFAULT 'user',
+      FOREIGN KEY (application_id) REFERENCES applications(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS cover_letter_suggestions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      application_id INTEGER NOT NULL,
+      version_id INTEGER,
+      paragraph_index INTEGER,
+      original_text TEXT,
+      suggested_text TEXT,
+      status TEXT DEFAULT 'pending',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (application_id) REFERENCES applications(id) ON DELETE CASCADE,
+      FOREIGN KEY (version_id) REFERENCES cover_letter_versions(id) ON DELETE SET NULL
+    );
   `);
   
   // Add match_result column to applications table if it doesn't exist
@@ -137,6 +160,10 @@ export function initDatabase(): Database.Database {
     CREATE INDEX IF NOT EXISTS idx_applications_created_at ON applications(created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_contact_persons_application_id ON contact_persons(application_id);
     CREATE INDEX IF NOT EXISTS idx_old_cover_letters_uploaded_at ON old_cover_letters(uploaded_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_cover_letter_versions_application_id ON cover_letter_versions(application_id);
+    CREATE INDEX IF NOT EXISTS idx_cover_letter_versions_created_at ON cover_letter_versions(created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_cover_letter_suggestions_application_id ON cover_letter_suggestions(application_id);
+    CREATE INDEX IF NOT EXISTS idx_cover_letter_suggestions_status ON cover_letter_suggestions(status);
   `);
   
   return db;

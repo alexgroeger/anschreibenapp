@@ -12,8 +12,8 @@ import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Markdown } from "@/components/ui/markdown"
 import { format } from "date-fns"
-import { Pencil, Save, X, Building2, Briefcase, Calendar, User, Mail, Phone, ExternalLink, Plus, Trash2, Euro, FileText, MapPin, Clock } from "lucide-react"
-import { CoverLetterChat } from "@/components/cover-letter/CoverLetterChat"
+import { Pencil, Save, X, Building2, Briefcase, Calendar, User, Mail, Phone, ExternalLink, Plus, Trash2, Euro, FileText, MapPin, Clock, FileEdit } from "lucide-react"
+import { CoverLetterEditor } from "@/components/cover-letter/CoverLetterEditor"
 
 interface Contact {
   id: number
@@ -52,10 +52,7 @@ export function ApplicationDetail() {
   const [loading, setLoading] = useState(true)
   const [status, setStatus] = useState<string>("")
   const [saving, setSaving] = useState(false)
-  const [editedCoverLetter, setEditedCoverLetter] = useState("")
-  const [tone, setTone] = useState("professionell")
-  const [focus, setFocus] = useState("skills")
-  const [regenerating, setRegenerating] = useState(false)
+  const [editorOpen, setEditorOpen] = useState(false)
   
   // New state for editable fields
   const [editingCompany, setEditingCompany] = useState(false)
@@ -68,6 +65,9 @@ export function ApplicationDetail() {
   // Contact person editing state
   const [addingContact, setAddingContact] = useState(false)
   const [newContact, setNewContact] = useState({ name: "", email: "", phone: "", position: "" })
+  
+  // Cover letter editing state
+  const [editedCoverLetter, setEditedCoverLetter] = useState<string | null>(null)
 
   const loadApplication = useCallback(async () => {
     if (!params?.id) return
@@ -90,9 +90,12 @@ export function ApplicationDetail() {
       setStatus(data.application.status || 'rueckmeldung_ausstehend')
       setEditedCompany(data.application.company || '')
       setEditedPosition(data.application.position || '')
-      if (data.application.cover_letter) {
-        setEditedCoverLetter(data.application.cover_letter)
-      }
+      
+      // Auto-open editor if status is "in_bearbeitung" and no cover letter exists
+      const shouldAutoOpen = 
+        data.application.status === 'in_bearbeitung' && 
+        !data.application.cover_letter
+      setEditorOpen(shouldAutoOpen)
       if (data.application.sent_at) {
         // Format date for input field (YYYY-MM-DD)
         try {
@@ -278,55 +281,7 @@ export function ApplicationDetail() {
     }
   }
 
-  const handleRegenerate = async () => {
-    if (!application || !application.job_description) return
-
-    setRegenerating(true)
-    try {
-      // First get match result
-      const matchResponse = await fetch('/api/match', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ jobDescription: application.job_description }),
-      })
-
-      if (!matchResponse.ok) {
-        throw new Error('Fehler beim Matching')
-      }
-
-      const matchData = await matchResponse.json()
-      const matchResult = matchData.matchResult
-
-      // Then generate new cover letter
-      const generateResponse = await fetch('/api/generate', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          matchResult,
-          jobDescription: application.job_description,
-          tone,
-          focus,
-        }),
-      })
-
-      if (generateResponse.ok) {
-        const generateData = await generateResponse.json()
-        setEditedCoverLetter(generateData.coverLetter)
-      } else {
-        throw new Error('Fehler bei der Generierung')
-      }
-    } catch (error: any) {
-      alert(error.message || 'Fehler beim Regenerieren des Anschreibens')
-    } finally {
-      setRegenerating(false)
-    }
-  }
-
-  const handleSaveCoverLetter = async () => {
+  const handleSaveCoverLetter = async (content: string) => {
     if (!application) return
 
     setSaving(true)
@@ -336,11 +291,11 @@ export function ApplicationDetail() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ cover_letter: editedCoverLetter }),
+        body: JSON.stringify({ cover_letter: content }),
       })
 
       if (response.ok) {
-        loadApplication()
+        await loadApplication()
       } else {
         alert('Fehler beim Speichern des Anschreibens')
       }
@@ -416,102 +371,30 @@ export function ApplicationDetail() {
             {application.company} - {application.position}
           </h1>
         </div>
-        <Button variant="outline" onClick={() => router.push('/dashboard')}>
-          Zurück zum Dashboard
-        </Button>
+        <div className="flex gap-2">
+          <Button 
+            variant="default" 
+            onClick={() => setEditorOpen(true)}
+            className="flex items-center gap-2"
+          >
+            <FileEdit className="h-4 w-4" />
+            Anschreiben bearbeiten
+          </Button>
+          <Button variant="outline" onClick={() => router.push('/dashboard')}>
+            Zurück zum Dashboard
+          </Button>
+        </div>
       </div>
 
       {/* Main content with sidebar */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main content - left side */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Tabs for Cover Letter, Matching and Chat */}
-          <Tabs defaultValue="cover-letter" className="w-full">
-            <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="cover-letter">Anschreiben</TabsTrigger>
+          {/* Matching Tab */}
+          <Tabs defaultValue="matching" className="w-full">
+            <TabsList className="grid w-full grid-cols-1">
               <TabsTrigger value="matching">Matching</TabsTrigger>
-              <TabsTrigger value="chat">Chat</TabsTrigger>
             </TabsList>
-            
-            {/* Cover Letter Tab */}
-            <TabsContent value="cover-letter" className="mt-4">
-              {application.job_description ? (
-                <Card>
-            <CardHeader>
-              <div className="flex justify-between items-center">
-                <div>
-                  <CardTitle>Anschreiben</CardTitle>
-                  <CardDescription className="mt-1">
-                    {application.cover_letter ? 'Ihr generiertes Anschreiben' : 'Erstellen Sie ein neues Anschreiben'}
-                  </CardDescription>
-                </div>
-                {editedCoverLetter && (
-                  <Button onClick={handleSaveCoverLetter} disabled={saving}>
-                    <Save className="h-4 w-4 mr-2" />
-                    {saving ? 'Speichere...' : 'Speichern'}
-                  </Button>
-                )}
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="tone">Tonalität</Label>
-                  <Select value={tone} onValueChange={setTone}>
-                    <SelectTrigger id="tone">
-                      <SelectValue placeholder="Tonalität wählen" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="professionell">Professionell</SelectItem>
-                      <SelectItem value="modern">Modern</SelectItem>
-                      <SelectItem value="enthusiastisch">Enthusiastisch</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="focus">Fokus</Label>
-                  <Select value={focus} onValueChange={setFocus}>
-                    <SelectTrigger id="focus">
-                      <SelectValue placeholder="Fokus wählen" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="skills">Skills</SelectItem>
-                      <SelectItem value="motivation">Motivation</SelectItem>
-                      <SelectItem value="erfahrung">Erfahrung</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <Button
-                onClick={handleRegenerate}
-                variant={application.cover_letter ? "outline" : "default"}
-                className="w-full"
-                disabled={regenerating}
-              >
-                {regenerating ? 'Generiere...' : application.cover_letter ? 'Anschreiben neu generieren' : 'Anschreiben generieren'}
-              </Button>
-
-              <div className="space-y-2">
-                <Label>Anschreiben</Label>
-                <Textarea
-                  value={editedCoverLetter}
-                  onChange={(e) => setEditedCoverLetter(e.target.value)}
-                  className="min-h-[400px] font-mono text-sm"
-                  placeholder={application.cover_letter ? "Ihr Anschreiben..." : "Klicken Sie auf 'Anschreiben generieren', um ein Anschreiben zu erstellen..."}
-                />
-              </div>
-            </CardContent>
-          </Card>
-              ) : (
-                <Card>
-                  <CardContent className="py-8 text-center text-muted-foreground">
-                    <p>Keine Jobbeschreibung vorhanden. Bitte fügen Sie eine Jobbeschreibung hinzu, um ein Anschreiben zu erstellen.</p>
-                  </CardContent>
-                </Card>
-              )}
-            </TabsContent>
             
             {/* Matching Tab */}
             <TabsContent value="matching" className="mt-4">
@@ -533,29 +416,6 @@ export function ApplicationDetail() {
                 <Card>
                   <CardContent className="py-8 text-center text-muted-foreground">
                     <p>Noch kein Matching-Ergebnis vorhanden</p>
-                  </CardContent>
-                </Card>
-              )}
-            </TabsContent>
-            
-            {/* Chat Tab */}
-            <TabsContent value="chat" className="mt-4">
-              {application.job_description ? (
-                <div className="h-[600px]">
-                  <CoverLetterChat
-                    coverLetter={editedCoverLetter || 'Noch kein Anschreiben vorhanden. Bitte generieren Sie zuerst ein Anschreiben im Tab "Anschreiben".'}
-                    matchResult={application.match_result || ''}
-                    jobDescription={application.job_description}
-                    extraction={extractionData}
-                    onCoverLetterUpdate={(newCoverLetter) => {
-                      setEditedCoverLetter(newCoverLetter)
-                    }}
-                  />
-                </div>
-              ) : (
-                <Card>
-                  <CardContent className="py-8 text-center text-muted-foreground">
-                    <p>Keine Jobbeschreibung vorhanden. Bitte fügen Sie eine Jobbeschreibung hinzu, um den Chat zu nutzen.</p>
                   </CardContent>
                 </Card>
               )}
@@ -1009,6 +869,16 @@ export function ApplicationDetail() {
           </div>
         </div>
       </div>
+
+      {/* Cover Letter Editor */}
+      {application && (
+        <CoverLetterEditor
+          application={application}
+          isOpen={editorOpen}
+          onOpenChange={setEditorOpen}
+          onSave={handleSaveCoverLetter}
+        />
+      )}
     </div>
   )
 }

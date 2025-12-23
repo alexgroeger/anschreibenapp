@@ -7,6 +7,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Send, Loader2 } from "lucide-react"
 import { Markdown } from "@/components/ui/markdown"
+import { parseParagraphs, findParagraphContainingText } from "@/lib/paragraph-parser"
+import type { Suggestion } from "./SuggestionList"
 
 interface CoverLetterChatProps {
   coverLetter: string
@@ -14,6 +16,7 @@ interface CoverLetterChatProps {
   jobDescription: string
   extraction?: any
   onCoverLetterUpdate?: (newCoverLetter: string) => void
+  onSuggestionCreated?: (suggestion: Omit<Suggestion, 'id' | 'application_id' | 'created_at'>) => void
 }
 
 export function CoverLetterChat({
@@ -22,6 +25,7 @@ export function CoverLetterChat({
   jobDescription,
   extraction,
   onCoverLetterUpdate,
+  onSuggestionCreated,
 }: CoverLetterChatProps) {
   const [input, setInput] = useState("")
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -39,11 +43,28 @@ export function CoverLetterChat({
       // Extract text from the finished message
       const content = getMessageContent(message).trim()
       
+      // Parse paragraphs from current cover letter
+      const currentParagraphs = parseParagraphs(coverLetter)
+      
       // Check if the message looks like a new cover letter (long text without question marks)
       if (content.length > 200 && !content.includes('?') && !content.toLowerCase().includes('frage')) {
-        // Likely a new cover letter - update it
-        if (onCoverLetterUpdate) {
-          onCoverLetterUpdate(content)
+        // Try to detect if this is a full cover letter or paragraph-level changes
+        const responseParagraphs = parseParagraphs(content)
+        
+        // If response has similar structure to current cover letter, it might be a full replacement
+        if (responseParagraphs.length >= currentParagraphs.length * 0.8) {
+          // Likely a full new cover letter - update it
+          if (onCoverLetterUpdate) {
+            onCoverLetterUpdate(content)
+          }
+        } else {
+          // Likely paragraph-level changes - try to extract suggestions
+          extractParagraphSuggestions(content, currentParagraphs, coverLetter)
+        }
+      } else {
+        // Check if it contains paragraph-level suggestions (mentions "Absatz" or similar patterns)
+        if (content.toLowerCase().includes('absatz') || content.match(/absatz\s+\d+/i)) {
+          extractParagraphSuggestions(content, currentParagraphs, coverLetter)
         }
       }
     },
@@ -83,6 +104,76 @@ export function CoverLetterChat({
       return message
     }
     return ''
+  }
+
+  const extractParagraphSuggestions = (
+    responseText: string,
+    currentParagraphs: ReturnType<typeof parseParagraphs>,
+    originalText: string
+  ) => {
+    if (!onSuggestionCreated) return
+
+    // Try to extract paragraph suggestions from the response
+    // Look for patterns like "Absatz X:" or numbered paragraphs
+    const paragraphPattern = /(?:absatz\s*(\d+)[:.]?\s*)?(.+?)(?=(?:absatz\s*\d+[:.]?|$))/gis
+    const matches = Array.from(responseText.matchAll(paragraphPattern))
+    
+    if (matches.length === 0) {
+      // If no explicit paragraph markers, try to match by content similarity
+      const responseParagraphs = parseParagraphs(responseText)
+      
+      responseParagraphs.forEach((responsePara) => {
+        // Find the most similar paragraph in the original
+        const matchingPara = findParagraphContainingText(
+          currentParagraphs,
+          responsePara.text.substring(0, 50) // Use first 50 chars for matching
+        )
+        
+        if (matchingPara && responsePara.text !== matchingPara.text) {
+          // Found a suggestion
+          onSuggestionCreated({
+            version_id: null,
+            paragraph_index: matchingPara.index,
+            original_text: matchingPara.text,
+            suggested_text: responsePara.text,
+            status: 'pending',
+          })
+        }
+      })
+    } else {
+      // Process explicit paragraph markers
+      matches.forEach((match) => {
+        const paragraphNum = match[1] ? parseInt(match[1]) - 1 : null
+        const suggestedText = match[2].trim()
+        
+        if (paragraphNum !== null && paragraphNum >= 0 && paragraphNum < currentParagraphs.length) {
+          const originalPara = currentParagraphs[paragraphNum]
+          
+          if (suggestedText !== originalPara.text) {
+            onSuggestionCreated({
+              version_id: null,
+              paragraph_index: paragraphNum,
+              original_text: originalPara.text,
+              suggested_text: suggestedText,
+              status: 'pending',
+            })
+          }
+        } else if (paragraphNum === null) {
+          // No paragraph number, try to find by content
+          const matchingPara = findParagraphContainingText(currentParagraphs, suggestedText.substring(0, 50))
+          
+          if (matchingPara && suggestedText !== matchingPara.text) {
+            onSuggestionCreated({
+              version_id: null,
+              paragraph_index: matchingPara.index,
+              original_text: matchingPara.text,
+              suggested_text: suggestedText,
+              status: 'pending',
+            })
+          }
+        }
+      })
+    }
   }
 
   return (
