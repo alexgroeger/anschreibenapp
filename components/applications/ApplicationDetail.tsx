@@ -11,10 +11,12 @@ import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
 import { Markdown } from "@/components/ui/markdown"
 import { format } from "date-fns"
-import { Pencil, Save, X, Building2, Briefcase, Calendar, User, Mail, Phone, ExternalLink, Plus, Trash2, Euro, FileText, MapPin, Clock, FileEdit, Download, Eye } from "lucide-react"
+import { Pencil, Save, X, Building2, Briefcase, Calendar, User, Mail, Phone, ExternalLink, Plus, Trash2, Euro, FileText, MapPin, Clock, FileEdit, Download, Eye, Upload } from "lucide-react"
 import { CoverLetterEditor } from "@/components/cover-letter/CoverLetterEditor"
 import { ReminderList } from "@/components/reminders/ReminderList"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import { FileUpload } from "@/components/ui/file-upload"
 
 interface Contact {
   id: number
@@ -22,6 +24,17 @@ interface Contact {
   email: string | null
   phone: string | null
   position: string | null
+}
+
+interface Document {
+  id: number
+  application_id: number
+  filename: string
+  file_path: string
+  file_type: string | null
+  file_size: number | null
+  uploaded_at: string
+  created_at: string
 }
 
 interface Application {
@@ -112,6 +125,17 @@ export function ApplicationDetail() {
   // Dialog state for sent_at date
   const [showSentAtDialog, setShowSentAtDialog] = useState(false)
   const [dialogSentAt, setDialogSentAt] = useState("")
+
+  // Document state
+  const [documents, setDocuments] = useState<Document[]>([])
+  const [uploading, setUploading] = useState(false)
+  const [showUploadDialog, setShowUploadDialog] = useState(false)
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [deletingDocId, setDeletingDocId] = useState<number | null>(null)
+
+  // Delete application state
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   const loadApplication = useCallback(async () => {
     if (!params?.id) return
@@ -363,6 +387,75 @@ export function ApplicationDetail() {
     }
   }
 
+  const loadDocuments = useCallback(async () => {
+    if (!application) return
+
+    try {
+      const response = await fetch(`/api/applications/${application.id}/documents`)
+      if (response.ok) {
+        const data = await response.json()
+        setDocuments(data.documents || [])
+      }
+    } catch (error) {
+      console.error('Error loading documents:', error)
+    }
+  }, [application])
+
+  useEffect(() => {
+    if (application) {
+      loadDocuments()
+    }
+  }, [application, loadDocuments])
+
+  const handleDocumentUpload = async () => {
+    if (!application || !selectedFile) return
+
+    setUploading(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', selectedFile)
+
+      const response = await fetch(`/api/applications/${application.id}/documents`, {
+        method: 'POST',
+        body: formData,
+      })
+
+      if (response.ok) {
+        setSelectedFile(null)
+        setShowUploadDialog(false)
+        loadDocuments()
+      } else {
+        const error = await response.json()
+        alert(`Fehler beim Hochladen: ${error.error || 'Unbekannter Fehler'}`)
+      }
+    } catch (error) {
+      alert('Fehler beim Hochladen des Dokuments')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const handleDocumentDelete = async (docId: number) => {
+    if (!application || !confirm('Möchten Sie dieses Dokument wirklich löschen?')) return
+
+    setDeletingDocId(docId)
+    try {
+      const response = await fetch(`/api/applications/${application.id}/documents/${docId}`, {
+        method: 'DELETE',
+      })
+
+      if (response.ok) {
+        loadDocuments()
+      } else {
+        alert('Fehler beim Löschen des Dokuments')
+      }
+    } catch (error) {
+      alert('Fehler beim Löschen des Dokuments')
+    } finally {
+      setDeletingDocId(null)
+    }
+  }
+
   const handleSaveCoverLetter = async (content: string) => {
     if (!application) return
 
@@ -385,6 +478,31 @@ export function ApplicationDetail() {
       alert('Fehler beim Speichern des Anschreibens')
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleDeleteApplication = async () => {
+    if (!application) return
+
+    setDeleting(true)
+    try {
+      const response = await fetch(`/api/applications/${application.id}`, {
+        method: 'DELETE',
+      })
+
+      if (response.ok) {
+        // Navigate to dashboard after successful deletion
+        router.push('/dashboard')
+      } else {
+        const error = await response.json()
+        alert(`Fehler beim Löschen der Bewerbung: ${error.error || 'Unbekannter Fehler'}`)
+        setShowDeleteDialog(false)
+      }
+    } catch (error) {
+      alert('Fehler beim Löschen der Bewerbung')
+      setShowDeleteDialog(false)
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -494,33 +612,157 @@ export function ApplicationDetail() {
             <ReminderList applicationId={application.id} />
           </div>
 
-          {/* Matching Ergebnis */}
-          {application.match_result ? (
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle>Matching-Ergebnis</CardTitle>
-                    <CardDescription>
-                      Analyse der Übereinstimmung zwischen Ihrem Profil und der Stellenausschreibung
-                    </CardDescription>
-                  </div>
-                  <MatchScoreBadge score={application.match_score} />
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="bg-muted p-4 rounded-md max-h-[600px] overflow-y-auto">
-                  <Markdown content={application.match_result} />
-                </div>
-              </CardContent>
-            </Card>
-          ) : (
-            <Card>
-              <CardContent className="py-8 text-center text-muted-foreground">
-                <p>Noch kein Matching-Ergebnis vorhanden</p>
-              </CardContent>
-            </Card>
-          )}
+          {/* Tabs for Matching and Extraction */}
+          <Tabs defaultValue="matching">
+            <TabsList>
+              <TabsTrigger value="matching">Matching</TabsTrigger>
+              <TabsTrigger value="extraction">Extraktion</TabsTrigger>
+            </TabsList>
+
+            {/* Matching Tab */}
+            <TabsContent value="matching">
+              {application.match_result ? (
+                <Card>
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <CardTitle>Matching-Ergebnis</CardTitle>
+                        <CardDescription>
+                          Analyse der Übereinstimmung zwischen Ihrem Profil und der Stellenausschreibung
+                        </CardDescription>
+                      </div>
+                      <MatchScoreBadge score={application.match_score} />
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="bg-muted p-4 rounded-md max-h-[600px] overflow-y-auto">
+                      <Markdown content={application.match_result} />
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : (
+                <Card>
+                  <CardContent className="py-8 text-center text-muted-foreground">
+                    <p>Noch kein Matching-Ergebnis vorhanden</p>
+                  </CardContent>
+                </Card>
+              )}
+            </TabsContent>
+
+            {/* Extraction Tab */}
+            <TabsContent value="extraction">
+              {extractionData ? (
+                <Card>
+                  <CardHeader>
+                    <div>
+                      <CardTitle>Extraktionsdaten</CardTitle>
+                      <CardDescription>
+                        Extrahierte Informationen aus der Stellenausschreibung
+                      </CardDescription>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      {extractionData.keyRequirements && (
+                        <div>
+                          <label className="text-sm font-semibold mb-2 block">Key Requirements</label>
+                          <div className="bg-muted p-4 rounded-md max-h-[200px] overflow-y-auto text-sm whitespace-pre-wrap">
+                            {typeof extractionData.keyRequirements === 'string' 
+                              ? extractionData.keyRequirements 
+                              : JSON.stringify(extractionData.keyRequirements, null, 2)}
+                          </div>
+                        </div>
+                      )}
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {extractionData.skills && (
+                          <div>
+                            <label className="text-sm font-semibold mb-2 block">Hard Skills</label>
+                            <div className="bg-muted p-4 rounded-md max-h-[200px] overflow-y-auto text-sm whitespace-pre-wrap">
+                              {typeof extractionData.skills === 'string' 
+                                ? extractionData.skills 
+                                : JSON.stringify(extractionData.skills, null, 2)}
+                            </div>
+                          </div>
+                        )}
+                        {extractionData.softSkills && (
+                          <div>
+                            <label className="text-sm font-semibold mb-2 block">Soft Skills</label>
+                            <div className="bg-muted p-4 rounded-md max-h-[200px] overflow-y-auto text-sm whitespace-pre-wrap">
+                              {typeof extractionData.softSkills === 'string' 
+                                ? extractionData.softSkills 
+                                : JSON.stringify(extractionData.softSkills, null, 2)}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {extractionData.culture && (
+                        <div>
+                          <label className="text-sm font-semibold mb-2 block">Unternehmenskultur</label>
+                          <div className="bg-muted p-4 rounded-md max-h-[200px] overflow-y-auto text-sm whitespace-pre-wrap">
+                            {typeof extractionData.culture === 'string' 
+                              ? extractionData.culture 
+                              : JSON.stringify(extractionData.culture, null, 2)}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Metadata fields */}
+                      {(extractionData.deadline || extractionData.salary || extractionData.contractType || extractionData.workplace || extractionData.startDate) && (
+                        <div className="pt-4 border-t">
+                          <label className="text-sm font-semibold mb-3 block">Weitere Informationen</label>
+                          <div className="space-y-2">
+                            {extractionData.deadline && (
+                              <div className="flex items-center gap-2 text-sm">
+                                <Calendar className="h-4 w-4 text-muted-foreground" />
+                                <span className="text-muted-foreground">Bewerbungsfrist:</span>
+                                <span className="font-medium">{extractionData.deadline}</span>
+                              </div>
+                            )}
+                            {extractionData.salary && (
+                              <div className="flex items-center gap-2 text-sm">
+                                <Euro className="h-4 w-4 text-muted-foreground" />
+                                <span className="text-muted-foreground">Vergütung:</span>
+                                <span className="font-medium">{extractionData.salary}</span>
+                              </div>
+                            )}
+                            {extractionData.contractType && (
+                              <div className="flex items-center gap-2 text-sm">
+                                <FileText className="h-4 w-4 text-muted-foreground" />
+                                <span className="text-muted-foreground">Befristung:</span>
+                                <span className="font-medium">{extractionData.contractType}</span>
+                              </div>
+                            )}
+                            {extractionData.workplace && (
+                              <div className="flex items-center gap-2 text-sm">
+                                <MapPin className="h-4 w-4 text-muted-foreground" />
+                                <span className="text-muted-foreground">Arbeitsplatz:</span>
+                                <span className="font-medium">{extractionData.workplace}</span>
+                              </div>
+                            )}
+                            {extractionData.startDate && (
+                              <div className="flex items-center gap-2 text-sm">
+                                <Clock className="h-4 w-4 text-muted-foreground" />
+                                <span className="text-muted-foreground">Möglicher Start:</span>
+                                <span className="font-medium">{extractionData.startDate}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : (
+                <Card>
+                  <CardContent className="py-8 text-center text-muted-foreground">
+                    <p>Noch keine Extraktionsdaten vorhanden</p>
+                  </CardContent>
+                </Card>
+              )}
+            </TabsContent>
+          </Tabs>
         </div>
 
         {/* Sidebar - right side */}
@@ -743,6 +985,122 @@ export function ApplicationDetail() {
             )}
           </div>
 
+          {/* Archived Documents */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-1">
+                <FileText className="h-3 w-3" />
+                Archivierte Dokumente
+              </label>
+              {!showUploadDialog && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setShowUploadDialog(true)}
+                  className="h-6 px-2"
+                >
+                  <Upload className="h-3 w-3 mr-1" />
+                  Hochladen
+                </Button>
+              )}
+            </div>
+
+            {showUploadDialog && (
+              <div className="border rounded-md p-2.5 space-y-2 bg-muted/30">
+                <FileUpload
+                  onFileSelect={(file) => setSelectedFile(file)}
+                  accept=".pdf,.txt,.docx,.doc"
+                  maxSize={10}
+                />
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    onClick={handleDocumentUpload}
+                    disabled={uploading || !selectedFile}
+                    className="h-7 text-xs"
+                  >
+                    {uploading ? 'Wird hochgeladen...' : 'Hochladen'}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setShowUploadDialog(false)
+                      setSelectedFile(null)
+                    }}
+                    disabled={uploading}
+                    className="h-7 text-xs"
+                  >
+                    <X className="h-3 w-3 mr-1" />
+                    Abbrechen
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {documents.length > 0 && (
+              <div className="space-y-2">
+                {documents.map((doc) => (
+                  <div key={doc.id} className="border rounded-md p-2.5 space-y-1.5 hover:bg-muted/50 transition-colors group">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                        <FileText className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium truncate">{doc.filename}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {doc.uploaded_at ? format(new Date(doc.uploaded_at), 'dd.MM.yyyy') : ''}
+                          </p>
+                        </div>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleDocumentDelete(doc.id)}
+                        disabled={deletingDocId === doc.id}
+                        className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <Trash2 className="h-3 w-3 text-destructive" />
+                      </Button>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          window.open(`/api/applications/${application.id}/documents/${doc.id}?view=true`, '_blank')
+                        }}
+                        className="flex items-center gap-1 h-7 text-xs"
+                      >
+                        <Eye className="h-3 w-3" />
+                        Ansehen
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const link = document.createElement('a')
+                          link.href = `/api/applications/${application.id}/documents/${doc.id}`
+                          link.download = doc.filename
+                          document.body.appendChild(link)
+                          link.click()
+                          document.body.removeChild(link)
+                        }}
+                        className="flex items-center gap-1 h-7 text-xs"
+                      >
+                        <Download className="h-3 w-3" />
+                        Download
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {documents.length === 0 && !showUploadDialog && (
+              <p className="text-xs text-muted-foreground italic">Keine Dokumente vorhanden</p>
+            )}
+          </div>
+
           {/* Company */}
           <div className="space-y-2">
             <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-1">
@@ -903,94 +1261,55 @@ export function ApplicationDetail() {
             </div>
           )}
 
-          {/* Extraction Data */}
-          {extractionData && (
+          {/* Extraction Metadata - Important Information */}
+          {extractionData && (extractionData.deadline || extractionData.salary || extractionData.contractType || extractionData.workplace || extractionData.startDate) && (
             <div className="space-y-2">
               <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                Extraktionsdaten
+                Weitere Informationen
               </label>
-              <div className="space-y-3">
-                {extractionData.keyRequirements && (
-                  <div>
-                    <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Key Requirements</label>
-                    <div className="text-xs whitespace-pre-wrap bg-muted p-2.5 rounded-md border max-h-32 overflow-y-auto">
-                      {typeof extractionData.keyRequirements === 'string' 
-                        ? extractionData.keyRequirements 
-                        : JSON.stringify(extractionData.keyRequirements, null, 2)}
+              <div className="space-y-2.5">
+                {extractionData.deadline && (
+                  <div className="flex items-start gap-2 text-xs">
+                    <Calendar className="h-3 w-3 text-muted-foreground mt-0.5 flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <span className="text-muted-foreground">Bewerbungsfrist:</span>
+                      <span className="font-medium ml-1">{extractionData.deadline}</span>
                     </div>
                   </div>
                 )}
-                {extractionData.culture && (
-                  <div>
-                    <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Unternehmenskultur</label>
-                    <div className="text-xs whitespace-pre-wrap bg-muted p-2.5 rounded-md border max-h-32 overflow-y-auto">
-                      {typeof extractionData.culture === 'string' 
-                        ? extractionData.culture 
-                        : JSON.stringify(extractionData.culture, null, 2)}
+                {extractionData.salary && (
+                  <div className="flex items-start gap-2 text-xs">
+                    <Euro className="h-3 w-3 text-muted-foreground mt-0.5 flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <span className="text-muted-foreground">Vergütung:</span>
+                      <span className="font-medium ml-1 break-words">{extractionData.salary}</span>
                     </div>
                   </div>
                 )}
-                {extractionData.skills && (
-                  <div>
-                    <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Hard Skills</label>
-                    <div className="text-xs whitespace-pre-wrap bg-muted p-2.5 rounded-md border max-h-32 overflow-y-auto">
-                      {typeof extractionData.skills === 'string' 
-                        ? extractionData.skills 
-                        : JSON.stringify(extractionData.skills, null, 2)}
+                {extractionData.contractType && (
+                  <div className="flex items-start gap-2 text-xs">
+                    <FileText className="h-3 w-3 text-muted-foreground mt-0.5 flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <span className="text-muted-foreground">Befristung:</span>
+                      <span className="font-medium ml-1">{extractionData.contractType}</span>
                     </div>
                   </div>
                 )}
-                {extractionData.softSkills && (
-                  <div>
-                    <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Soft Skills</label>
-                    <div className="text-xs whitespace-pre-wrap bg-muted p-2.5 rounded-md border max-h-32 overflow-y-auto">
-                      {typeof extractionData.softSkills === 'string' 
-                        ? extractionData.softSkills 
-                        : JSON.stringify(extractionData.softSkills, null, 2)}
+                {extractionData.workplace && (
+                  <div className="flex items-start gap-2 text-xs">
+                    <MapPin className="h-3 w-3 text-muted-foreground mt-0.5 flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <span className="text-muted-foreground">Arbeitsplatz:</span>
+                      <span className="font-medium ml-1 break-words">{extractionData.workplace}</span>
                     </div>
                   </div>
                 )}
-                
-                {/* New metadata fields */}
-                {(extractionData.deadline || extractionData.salary || extractionData.contractType || extractionData.workplace || extractionData.startDate) && (
-                  <div className="pt-2 border-t">
-                    <label className="text-xs font-medium text-muted-foreground mb-2 block">Weitere Informationen</label>
-                    <div className="space-y-2">
-                      {extractionData.deadline && (
-                        <div className="flex items-center gap-2 text-xs">
-                          <Calendar className="h-3 w-3 text-muted-foreground" />
-                          <span className="text-muted-foreground">Bewerbungsfrist:</span>
-                          <span className="font-medium">{extractionData.deadline}</span>
-                        </div>
-                      )}
-                      {extractionData.salary && (
-                        <div className="flex items-center gap-2 text-xs">
-                          <Euro className="h-3 w-3 text-muted-foreground" />
-                          <span className="text-muted-foreground">Vergütung:</span>
-                          <span className="font-medium">{extractionData.salary}</span>
-                        </div>
-                      )}
-                      {extractionData.contractType && (
-                        <div className="flex items-center gap-2 text-xs">
-                          <FileText className="h-3 w-3 text-muted-foreground" />
-                          <span className="text-muted-foreground">Befristung:</span>
-                          <span className="font-medium">{extractionData.contractType}</span>
-                        </div>
-                      )}
-                      {extractionData.workplace && (
-                        <div className="flex items-center gap-2 text-xs">
-                          <MapPin className="h-3 w-3 text-muted-foreground" />
-                          <span className="text-muted-foreground">Arbeitsplatz:</span>
-                          <span className="font-medium">{extractionData.workplace}</span>
-                        </div>
-                      )}
-                      {extractionData.startDate && (
-                        <div className="flex items-center gap-2 text-xs">
-                          <Clock className="h-3 w-3 text-muted-foreground" />
-                          <span className="text-muted-foreground">Möglicher Start:</span>
-                          <span className="font-medium">{extractionData.startDate}</span>
-                        </div>
-                      )}
+                {extractionData.startDate && (
+                  <div className="flex items-start gap-2 text-xs">
+                    <Clock className="h-3 w-3 text-muted-foreground mt-0.5 flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <span className="text-muted-foreground">Möglicher Start:</span>
+                      <span className="font-medium ml-1">{extractionData.startDate}</span>
                     </div>
                   </div>
                 )}
@@ -1004,6 +1323,20 @@ export function ApplicationDetail() {
             <p className="text-xs text-muted-foreground">
               {application.created_at ? format(new Date(application.created_at), 'dd.MM.yyyy HH:mm') : 'Unbekannt'}
             </p>
+          </div>
+
+          {/* Delete Application - at the end, less prominent */}
+          <div className="pt-6 mt-6 border-t">
+            <Button 
+              variant="destructive" 
+              onClick={() => setShowDeleteDialog(true)}
+              className="w-full flex items-center justify-center gap-2"
+              disabled={deleting}
+              size="sm"
+            >
+              <Trash2 className="h-4 w-4" />
+              {deleting ? 'Wird gelöscht...' : 'Bewerbung löschen'}
+            </Button>
           </div>
         </div>
       </div>
@@ -1055,6 +1388,39 @@ export function ApplicationDetail() {
               disabled={saving || !dialogSentAt}
             >
               {saving ? 'Speichern...' : 'Speichern'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog for delete confirmation */}
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Bewerbung löschen</DialogTitle>
+            <DialogDescription>
+              Möchten Sie die Bewerbung bei <strong>{application?.company}</strong> für die Position <strong>{application?.position}</strong> wirklich löschen?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-sm text-muted-foreground">
+              Diese Aktion kann nicht rückgängig gemacht werden. Alle zugehörigen Daten (Kontaktpersonen, Dokumente, Erinnerungen) werden ebenfalls gelöscht.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowDeleteDialog(false)}
+              disabled={deleting}
+            >
+              Abbrechen
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteApplication}
+              disabled={deleting}
+            >
+              {deleting ? 'Wird gelöscht...' : 'Löschen'}
             </Button>
           </DialogFooter>
         </DialogContent>
