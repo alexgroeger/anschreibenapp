@@ -289,6 +289,19 @@ export async function GET(request: NextRequest) {
     if (error.message && error.message.includes('fts')) {
       console.log('Falling back to filename search due to FTS5 error');
       try {
+        // Re-extract query params for fallback
+        const { searchParams: fallbackParams } = new URL(request.url);
+        const fallbackQuery = fallbackParams.get('q');
+        const fallbackLimit = parseInt(fallbackParams.get('limit') || '50');
+        const fallbackOffset = parseInt(fallbackParams.get('offset') || '0');
+        
+        if (!fallbackQuery) {
+          return NextResponse.json(
+            { error: 'Search query is required' },
+            { status: 400 }
+          );
+        }
+        
         const db = getDatabase();
         const searchQuery = `
           SELECT 
@@ -310,17 +323,17 @@ export async function GET(request: NextRequest) {
           ORDER BY ad.uploaded_at DESC
           LIMIT ? OFFSET ?
         `;
-        const results = db.prepare(searchQuery).all(`%${query}%`, limit, offset) as any[];
+        const results = db.prepare(searchQuery).all(`%${fallbackQuery}%`, fallbackLimit, fallbackOffset) as any[];
         const countQuery = 'SELECT COUNT(*) as count FROM application_documents ad WHERE ad.filename LIKE ?';
-        const countResult = db.prepare(countQuery).get(`%${query}%`) as any;
+        const countResult = db.prepare(countQuery).get(`%${fallbackQuery}%`) as any;
         const total = countResult?.count || 0;
         
         return NextResponse.json(
           {
             results,
             total,
-            limit,
-            offset,
+            limit: fallbackLimit,
+            offset: fallbackOffset,
           },
           { status: 200 }
         );

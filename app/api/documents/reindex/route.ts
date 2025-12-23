@@ -34,7 +34,9 @@ export async function POST(request: NextRequest) {
         }
         
         // Create File object from buffer
-        const file = new File([fileBuffer], doc.filename, { type: doc.file_type || 'application/octet-stream' });
+        // Convert Buffer to Uint8Array for File constructor
+        const uint8Array = new Uint8Array(fileBuffer);
+        const file = new File([uint8Array], doc.filename, { type: doc.file_type || 'application/octet-stream' });
         
         // Extract text
         let extractedText: string | null = null;
