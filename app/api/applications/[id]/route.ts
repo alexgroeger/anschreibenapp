@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, getCachedStatement, syncDatabaseAfterWrite } from '@/lib/database/client';
 import { syncDeadlineReminder } from '@/lib/reminders/deadline-sync';
+import { existsSync, unlinkSync } from 'fs';
+
+// Route segment config - force dynamic for real-time data
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
 
 export async function GET(
   request: NextRequest,
@@ -172,6 +177,42 @@ export async function DELETE(
     }
     
     const db = getDatabase();
+    
+    // Get application to retrieve job_document_path before deletion
+    const application = db
+      .prepare('SELECT job_document_path FROM applications WHERE id = ?')
+      .get(id) as any;
+    
+    // Delete job document file if it exists
+    if (application && application.job_document_path) {
+      try {
+        if (application.job_document_path.startsWith('local:')) {
+          // Delete local file
+          const localPath = application.job_document_path.replace('local:', '');
+          if (existsSync(localPath)) {
+            unlinkSync(localPath);
+          }
+        } else {
+          // Delete from cloud storage
+          const { getBucket } = await import('@/lib/storage/sync');
+          const bucket = getBucket();
+          if (bucket) {
+            try {
+              const file = bucket.file(application.job_document_path);
+              await file.delete();
+            } catch (error: any) {
+              console.warn('Failed to delete job document from cloud storage:', error);
+              // Continue with database deletion even if file deletion fails
+            }
+          }
+        }
+      } catch (fileError: any) {
+        console.warn('Error deleting job document file:', fileError.message);
+        // Continue with database deletion even if file deletion fails
+      }
+    }
+    
+    // Delete application from database (cascade will handle related records)
     const result = db
       .prepare('DELETE FROM applications WHERE id = ?')
       .run(id);
