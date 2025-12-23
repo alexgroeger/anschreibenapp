@@ -4,7 +4,7 @@ import { useState, useRef, DragEvent, ChangeEvent } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Upload, File, X } from "lucide-react"
-import { isSupportedFileType } from "@/lib/file-parser"
+import { isSupportedFileType } from "@/lib/file-utils"
 
 interface FileUploadProps {
   onFileSelect: (file: File) => void

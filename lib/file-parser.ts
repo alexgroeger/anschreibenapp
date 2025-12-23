@@ -1,13 +1,33 @@
 // These modules are loaded at runtime using require() since they're CommonJS
 // This file is only used in API routes with runtime = 'nodejs', so require() is available
+// We use lazy loading to avoid issues when this file is imported in non-Node.js contexts
+let pdfParseModule: any = null;
+let mammothModule: any = null;
+
 const getPdfParse = () => {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  return require('pdf-parse');
+  if (!pdfParseModule) {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      pdfParseModule = require('pdf-parse');
+    } catch (error) {
+      console.error('Failed to load pdf-parse:', error);
+      throw new Error('pdf-parse module not available');
+    }
+  }
+  return pdfParseModule;
 };
 
 const getMammoth = () => {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  return require('mammoth');
+  if (!mammothModule) {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      mammothModule = require('mammoth');
+    } catch (error) {
+      console.error('Failed to load mammoth:', error);
+      throw new Error('mammoth module not available');
+    }
+  }
+  return mammothModule;
 };
 
 /**
@@ -85,12 +105,5 @@ export async function parseFile(file: File): Promise<string> {
   }
 }
 
-/**
- * Check if a file type is supported
- */
-export function isSupportedFileType(file: File): boolean {
-  const fileName = file.name.toLowerCase();
-  const fileExtension = fileName.split('.').pop()?.toLowerCase();
-  const supportedTypes = ['pdf', 'txt', 'docx', 'doc'];
-  return supportedTypes.includes(fileExtension || '');
-}
+// isSupportedFileType has been moved to lib/file-utils.ts
+// to avoid importing this file (which contains require()) in client components
