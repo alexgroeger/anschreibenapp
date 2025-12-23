@@ -10,7 +10,14 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed",
-    "test:smoke": "playwright test tests/smoke"
+    "test:smoke": "playwright test tests/smoke",
+    "pipeline": "./scripts/pipeline.sh",
+    "pipeline:test": "./scripts/pipeline.sh test",
+    "pipeline:trigger": "./scripts/pipeline.sh trigger",
+    "pipeline:status": "./scripts/pipeline.sh status",
+    "pipeline:service": "./scripts/pipeline.sh service",
+    "pipeline:logs": "./scripts/pipeline.sh logs",
+    "pipeline:rollback": "./scripts/pipeline.sh rollback"
   },
   "dependencies": {
     "@ai-sdk/google": "^2.0.51",
