@@ -239,9 +239,11 @@ export async function uploadFileToCloud(
       let buffer: Buffer;
       if (file instanceof Buffer) {
         buffer = file;
-      } else {
+      } else if (file instanceof File) {
         const arrayBuffer = await file.arrayBuffer();
         buffer = Buffer.from(arrayBuffer);
+      } else {
+        throw new Error('Unsupported file type');
       }
       writeFileSync(filePath, buffer);
       
@@ -259,9 +261,11 @@ export async function uploadFileToCloud(
     let buffer: Buffer;
     if (file instanceof Buffer) {
       buffer = file;
-    } else {
+    } else if (file instanceof File) {
       const arrayBuffer = await file.arrayBuffer();
       buffer = Buffer.from(arrayBuffer);
+    } else {
+      throw new Error('Unsupported file type');
     }
     
     await bucketFile.save(buffer, {
