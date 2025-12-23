@@ -1,6 +1,6 @@
 # Test-Dokumentation
 
-Diese Dokumentation beschreibt die automatisierten Tests für die Anschreiben App.
+Diese Dokumentation beschreibt die automatisierten Tests für die Anschreiben Muckibude.
 
 ## Test-Struktur
 

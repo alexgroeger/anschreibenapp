@@ -1,6 +1,6 @@
 # Deployment Pipeline Dokumentation
 
-Diese Dokumentation beschreibt die manuell auslösbare Deployment-Pipeline mit automatisierten Tests für die Anschreiben App.
+Diese Dokumentation beschreibt die manuell auslösbare Deployment-Pipeline mit automatisierten Tests für die Anschreiben Muckibude.
 
 ## Übersicht
 

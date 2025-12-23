@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Cloud Storage Setup Script für Anschreiben App
+# Cloud Storage Setup Script für Anschreiben Muckibude
 # Dieses Script erstellt einen Cloud Storage Bucket und konfiguriert die notwendigen Berechtigungen
 
 set -e  # Exit on error
@@ -11,7 +11,7 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
-echo -e "${GREEN}=== Cloud Storage Setup für Anschreiben App ===${NC}\n"
+echo -e "${GREEN}=== Cloud Storage Setup für Anschreiben Muckibude ===${NC}\n"
 
 # Check if gcloud is installed
 if ! command -v gcloud &> /dev/null; then
