@@ -32,19 +32,26 @@ steps:
   
   # Build the container image
   - name: 'gcr.io/cloud-builders/docker'
+    entrypoint: 'bash'
     args:
-      - 'build'
-      - '-t'
-      - 'gcr.io/$PROJECT_ID/anschreiben-app:$SHORT_SHA'
-      - '-t'
-      - 'gcr.io/$PROJECT_ID/anschreiben-app:latest'
-      - '.'
+      - '-c'
+      - |
+        TAG_VERSION=$${SHORT_SHA:-$(date +%Y%m%d-%H%M%S)}
+        docker build \
+          -t gcr.io/$PROJECT_ID/anschreiben-app:$$TAG_VERSION \
+          -t gcr.io/$PROJECT_ID/anschreiben-app:latest \
+          .
     id: 'build-image'
     waitFor: ['type-check']
   
   # Push the container image to Container Registry
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['push', 'gcr.io/$PROJECT_ID/anschreiben-app:$SHORT_SHA']
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        TAG_VERSION=$${SHORT_SHA:-$(date +%Y%m%d-%H%M%S)}
+        docker push gcr.io/$PROJECT_ID/anschreiben-app:$$TAG_VERSION
     id: 'push-image-sha'
     waitFor: ['build-image']
   
