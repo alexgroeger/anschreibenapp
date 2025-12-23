@@ -62,7 +62,7 @@ export async function POST(
     }
     
     const body = await request.json();
-    const { content, created_by } = body;
+    const { content, created_by, description } = body;
     
     if (!content || typeof content !== 'string') {
       return NextResponse.json(
@@ -94,10 +94,10 @@ export async function POST(
     // Erstelle neue Version
     const result = db
       .prepare(`
-        INSERT INTO cover_letter_versions (application_id, content, version_number, created_by)
-        VALUES (?, ?, ?, ?)
+        INSERT INTO cover_letter_versions (application_id, content, version_number, created_by, description)
+        VALUES (?, ?, ?, ?, ?)
       `)
-      .run(applicationId, content, nextVersionNumber, created_by || 'user');
+      .run(applicationId, content, nextVersionNumber, created_by || 'user', description || null);
     
     const versionId = Number(result.lastInsertRowid);
     

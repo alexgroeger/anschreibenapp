@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -106,6 +106,12 @@ export function ApplicationDetail() {
   const [status, setStatus] = useState<string>("")
   const [saving, setSaving] = useState(false)
   const [editorOpen, setEditorOpen] = useState(false)
+  const editorOpenRef = useRef(editorOpen)
+  
+  // Aktualisiere Ref wenn editorOpen sich ändert
+  useEffect(() => {
+    editorOpenRef.current = editorOpen
+  }, [editorOpen])
   
   // New state for editable fields
   const [editingCompany, setEditingCompany] = useState(false)
@@ -160,10 +166,14 @@ export function ApplicationDetail() {
       setEditedPosition(data.application.position || '')
       
       // Auto-open editor if status is "in_bearbeitung" and no cover letter exists
+      // WICHTIG: Nur ändern, wenn Editor noch nicht geöffnet ist (verhindert Schließen nach Speichern)
       const shouldAutoOpen = 
         data.application.status === 'in_bearbeitung' && 
         !data.application.cover_letter
-      setEditorOpen(shouldAutoOpen)
+      // Nur öffnen, wenn Editor noch nicht geöffnet ist (verwende Ref für aktuellen Wert)
+      if (!editorOpenRef.current) {
+        setEditorOpen(shouldAutoOpen)
+      }
       
       if (data.application.sent_at) {
         // Format date for input field (YYYY-MM-DD)

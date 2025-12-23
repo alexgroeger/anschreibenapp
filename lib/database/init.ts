@@ -185,6 +185,13 @@ export function initDatabase(): Database.Database {
         db.exec(`ALTER TABLE applications ADD COLUMN job_document_type TEXT;`);
       }
 
+      // Add description column to cover_letter_versions table if it doesn't exist
+      const versionsTableInfo = db.prepare("PRAGMA table_info(cover_letter_versions)").all() as any[];
+      const hasDescription = versionsTableInfo.some((col: any) => col.name === 'description');
+      if (!hasDescription) {
+        db.exec(`ALTER TABLE cover_letter_versions ADD COLUMN description TEXT;`);
+      }
+
       // Check if application_documents table exists
       const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='application_documents'").all() as any[];
       const hasApplicationDocuments = tables.length > 0;

@@ -14,6 +14,7 @@ export interface Version {
   version_number: number
   created_at: string
   created_by: string
+  description?: string | null
 }
 
 interface VersionHistoryProps {
@@ -83,23 +84,60 @@ export function VersionHistory({
             onValueChange={handleVersionChange}
             disabled={loading}
           >
-            <SelectTrigger>
-              <SelectValue placeholder="Version wählen..." />
-            </SelectTrigger>
-            <SelectContent>
-              {versions.map((version) => (
-                <SelectItem key={version.id} value={version.id.toString()}>
-                  <div className="flex flex-col">
+            <SelectTrigger className="h-auto min-h-[2.5rem] py-2">
+              {(() => {
+                const displayVersion = versions.find(
+                  v => v.id.toString() === (selectedVersionId || currentVersionId?.toString() || "")
+                )
+                if (!displayVersion) {
+                  return <span className="text-muted-foreground">Version wählen...</span>
+                }
+                return (
+                  <div className="flex items-center gap-2 w-full text-left">
                     <span className="font-medium">
-                      Version {version.version_number}
-                      {version.id === currentVersionId && " (Aktuell)"}
+                      Version {displayVersion.version_number}
+                      {displayVersion.id === currentVersionId && " (Aktuell)"}
                     </span>
-                    <span className="text-xs text-muted-foreground">
-                      {format(new Date(version.created_at), 'dd.MM.yyyy HH:mm')}
+                    {displayVersion.description && (
+                      <>
+                        <span className="text-muted-foreground">•</span>
+                        <span className="text-xs text-muted-foreground italic flex-1 truncate" title={displayVersion.description}>
+                          {displayVersion.description.length > 25 ? displayVersion.description.substring(0, 25) + '...' : displayVersion.description}
+                        </span>
+                      </>
+                    )}
+                    <span className="text-xs text-muted-foreground ml-auto whitespace-nowrap">
+                      {format(new Date(displayVersion.created_at), 'dd.MM.yyyy HH:mm')}
                     </span>
                   </div>
-                </SelectItem>
-              ))}
+                )
+              })()}
+            </SelectTrigger>
+            <SelectContent>
+              {versions.map((version) => {
+                const displayText = `Version ${version.version_number}${version.id === currentVersionId ? " (Aktuell)" : ""}${version.description ? ` • ${version.description}` : ""} • ${format(new Date(version.created_at), 'dd.MM.yyyy HH:mm')}`
+                return (
+                  <SelectItem key={version.id} value={version.id.toString()}>
+                    <div className="flex items-center gap-2 w-full">
+                      <span className="font-medium">
+                        Version {version.version_number}
+                        {version.id === currentVersionId && " (Aktuell)"}
+                      </span>
+                      {version.description && (
+                        <>
+                          <span className="text-muted-foreground">•</span>
+                          <span className="text-xs text-muted-foreground italic flex-1 truncate" title={version.description}>
+                            {version.description.length > 25 ? version.description.substring(0, 25) + '...' : version.description}
+                          </span>
+                        </>
+                      )}
+                      <span className="text-xs text-muted-foreground ml-auto whitespace-nowrap">
+                        {format(new Date(version.created_at), 'dd.MM.yyyy HH:mm')}
+                      </span>
+                    </div>
+                  </SelectItem>
+                )
+              })}
             </SelectContent>
           </Select>
         </div>
@@ -123,3 +161,4 @@ export function VersionHistory({
     </Card>
   )
 }
+

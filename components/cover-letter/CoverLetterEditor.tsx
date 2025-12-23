@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Card, CardContent } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { 
   Save, 
   Copy, 
@@ -17,9 +17,9 @@ import {
   X,
   Sparkles
 } from "lucide-react"
-import { CoverLetterChat } from "./CoverLetterChat"
 import { SuggestionList, type Suggestion } from "./SuggestionList"
 import { VersionHistory, type Version } from "./VersionHistory"
+import { DiffOverlay } from "./DiffOverlay"
 import { parseParagraphs } from "@/lib/paragraph-parser"
 import {
   Dialog,
@@ -74,6 +74,21 @@ export function CoverLetterEditor({
   const [pendingClose, setPendingClose] = useState(false)
   const [copySuccess, setCopySuccess] = useState(false)
   
+  // Diff-Modus State
+  const [pendingCoverLetter, setPendingCoverLetter] = useState<string | null>(null)
+  const [originalCoverLetter, setOriginalCoverLetter] = useState<string>("")
+  const [showDiff, setShowDiff] = useState(false)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  
+  // Modification input
+  const [modificationInput, setModificationInput] = useState("")
+  const [isModifying, setIsModifying] = useState(false)
+  
+  // Version description dialog
+  const [showDescriptionDialog, setShowDescriptionDialog] = useState(false)
+  const [versionDescription, setVersionDescription] = useState("")
+  const [pendingSave, setPendingSave] = useState(false)
+  
   // Undo/Redo History
   const [history, setHistory] = useState<HistoryEntry[]>([{
     content: application.cover_letter || "",
@@ -102,6 +117,10 @@ export function CoverLetterEditor({
       }])
       setHistoryIndex(0)
       setHasUnsavedChanges(false)
+      // Reset diff mode when application changes
+      setShowDiff(false)
+      setPendingCoverLetter(null)
+      setOriginalCoverLetter("")
     }
   }, [application.cover_letter])
 
@@ -214,13 +233,23 @@ export function CoverLetterEditor({
   }
 
   const handleSave = async () => {
+    // Zeige Dialog für Beschreibung
+    setPendingSave(true)
+    setShowDescriptionDialog(true)
+  }
+
+  const handleSaveWithDescription = async () => {
     setSaving(true)
+    setShowDescriptionDialog(false)
     try {
       // Save as new version
       const versionResponse = await fetch(`/api/applications/${application.id}/versions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content }),
+        body: JSON.stringify({ 
+          content,
+          description: versionDescription.trim() || null
+        }),
       })
 
       if (!versionResponse.ok) {
@@ -245,6 +274,15 @@ export function CoverLetterEditor({
       await onSave(content)
 
       setHasUnsavedChanges(false)
+      setVersionDescription("") // Reset description
+      setPendingSave(false)
+      
+      // Schließe Dialog, wenn pendingClose gesetzt ist
+      if (pendingClose) {
+        onOpenChange(false)
+        setPendingClose(false)
+      }
+      
       await loadVersions()
       await loadSuggestions()
     } catch (error: any) {
@@ -252,6 +290,14 @@ export function CoverLetterEditor({
     } finally {
       setSaving(false)
     }
+  }
+
+  const handleCancelSave = () => {
+    setShowDescriptionDialog(false)
+    setVersionDescription("")
+    setPendingSave(false)
+    // Wenn pendingClose gesetzt war, bleibt der Editor offen
+    setPendingClose(false)
   }
 
   const handleSuggestionCreated = async (suggestionData: Omit<Suggestion, 'id' | 'application_id' | 'created_at'>) => {
@@ -425,11 +471,10 @@ export function CoverLetterEditor({
 
   const handleUnsavedDialogAction = async (action: 'save' | 'discard' | 'cancel') => {
     if (action === 'save') {
-      await handleSave()
-      if (pendingClose) {
-        onOpenChange(false)
-        setPendingClose(false)
-      }
+      // Zeige Beschreibungs-Dialog statt direkt zu speichern
+      setPendingClose(true)
+      setShowUnsavedDialog(false)
+      setShowDescriptionDialog(true)
     } else if (action === 'discard') {
       if (pendingClose) {
         onOpenChange(false)
@@ -442,6 +487,70 @@ export function CoverLetterEditor({
 
   const canUndo = historyIndex > 0
   const canRedo = historyIndex < history.length - 1
+
+  // Accept pending changes
+  const handleAcceptChanges = () => {
+    if (pendingCoverLetter) {
+      setContent(pendingCoverLetter)
+      setHasUnsavedChanges(true)
+      addToHistory(pendingCoverLetter, suggestions)
+      setShowDiff(false)
+      setPendingCoverLetter(null)
+      setOriginalCoverLetter("")
+    }
+  }
+
+  // Reject pending changes
+  const handleRejectChanges = () => {
+    setShowDiff(false)
+    setPendingCoverLetter(null)
+    setOriginalCoverLetter("")
+  }
+
+  // Handle modification request
+  const handleModify = async () => {
+    if (!modificationInput.trim() || isModifying) return
+
+    setIsModifying(true)
+    try {
+      // Store original cover letter before modification
+      const original = content
+      
+      const response = await fetch('/api/cover-letter/modify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          coverLetter: content,
+          modificationRequest: modificationInput.trim(),
+          matchResult: application.match_result || '',
+          jobDescription: application.job_description || '',
+          extraction: application.extraction_data ? JSON.parse(application.extraction_data) : undefined,
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Fehler beim Überarbeiten des Anschreibens')
+      }
+
+      const data = await response.json()
+      const modifiedCoverLetter = data.modifiedCoverLetter
+
+      if (modifiedCoverLetter && modifiedCoverLetter.trim()) {
+        // Show diff view with the modified version
+        setPendingCoverLetter(modifiedCoverLetter.trim())
+        setOriginalCoverLetter(original)
+        setShowDiff(true)
+        setModificationInput("") // Clear input after successful modification
+      } else {
+        throw new Error('Kein überarbeitetes Anschreiben erhalten')
+      }
+    } catch (error: any) {
+      alert(error.message || 'Fehler beim Überarbeiten des Anschreibens')
+    } finally {
+      setIsModifying(false)
+    }
+  }
 
   const renderContentWithHighlights = () => {
     const pendingSuggestions = suggestions.filter(s => s.status === 'pending')
@@ -473,7 +582,7 @@ export function CoverLetterEditor({
   return (
     <>
       <Sheet open={isOpen} onOpenChange={handleClose}>
-        <SheetContent side="bottom" className="h-[90vh] flex flex-col overflow-hidden">
+        <SheetContent side="bottom" className="h-[95vh] flex flex-col overflow-hidden">
           <SheetHeader className="sr-only">
             <SheetTitle>Anschreiben Editor</SheetTitle>
             <SheetDescription>
@@ -606,14 +715,27 @@ export function CoverLetterEditor({
                 </div>
                 <div className="relative flex-1 min-h-[300px] overflow-hidden">
                   <Textarea
+                    ref={textareaRef}
                     id="editor"
                     value={content}
                     onChange={(e) => handleContentChange(e.target.value)}
-                    className="h-full min-h-[300px] font-mono text-sm resize-none overflow-auto"
+                    className={`h-full min-h-[300px] font-mono text-sm resize-none overflow-auto ${showDiff ? 'opacity-0 pointer-events-none' : ''}`}
                     placeholder="Ihr Anschreiben..."
+                    disabled={showDiff}
+                    readOnly={showDiff}
                   />
+                  {/* Diff Overlay for pending changes from chat */}
+                  {showDiff && pendingCoverLetter && originalCoverLetter && textareaRef.current && (
+                    <DiffOverlay
+                      originalText={originalCoverLetter}
+                      modifiedText={pendingCoverLetter}
+                      onAccept={handleAcceptChanges}
+                      onReject={handleRejectChanges}
+                      textareaRef={textareaRef}
+                    />
+                  )}
                   {/* Diff Overlay for suggestions - shows pending suggestions */}
-                  {suggestions.filter(s => s.status === 'pending').length > 0 && (
+                  {!showDiff && suggestions.filter(s => s.status === 'pending').length > 0 && (
                     <div className="absolute inset-0 pointer-events-none p-3 font-mono text-sm whitespace-pre-wrap opacity-50 overflow-hidden">
                       {renderContentWithHighlights()}
                     </div>
@@ -646,20 +768,53 @@ export function CoverLetterEditor({
                 />
               </div>
 
-              {/* Chat */}
-              <div className="flex-1 min-h-0 overflow-hidden">
-                <CoverLetterChat
-                  coverLetter={content}
-                  matchResult={application.match_result || ''}
-                  jobDescription={application.job_description || ''}
-                  extraction={application.extraction_data ? JSON.parse(application.extraction_data) : undefined}
-                  onCoverLetterUpdate={(newContent) => {
-                    setContent(newContent)
-                    setHasUnsavedChanges(true)
-                    addToHistory(newContent, suggestions)
-                  }}
-                  onSuggestionCreated={handleSuggestionCreated}
-                />
+              {/* Änderungswunsch Eingabe */}
+              <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
+                <Card className="h-full flex flex-col">
+                  <CardHeader>
+                    <CardTitle className="text-base">Anschreiben überarbeiten</CardTitle>
+                    <CardDescription className="text-xs">
+                      Beschreibe deine Änderungswünsche für das Anschreiben
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="flex-1 flex flex-col min-h-0 space-y-3">
+                    <div className="flex-1 min-h-0">
+                      <Textarea
+                        value={modificationInput}
+                        onChange={(e) => setModificationInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          // CMD+Enter (Mac) oder Ctrl+Enter (Windows/Linux) zum Absenden
+                          if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                            e.preventDefault();
+                            if (!isModifying && modificationInput.trim()) {
+                              handleModify();
+                            }
+                          }
+                        }}
+                        placeholder="z.B. 'Mache den Ton formeller', 'Kürze den ersten Absatz', 'Hervorhebe mehr meine Erfahrung mit React'... (CMD+Enter zum Absenden)"
+                        className="h-full min-h-[100px] resize-none"
+                        disabled={isModifying}
+                      />
+                    </div>
+                    <Button
+                      onClick={handleModify}
+                      disabled={isModifying || !modificationInput.trim()}
+                      className="w-full"
+                    >
+                      {isModifying ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Überarbeite...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="h-4 w-4 mr-2" />
+                          Anschreiben überarbeiten
+                        </>
+                      )}
+                    </Button>
+                  </CardContent>
+                </Card>
               </div>
             </div>
           </div>
@@ -693,6 +848,79 @@ export function CoverLetterEditor({
               disabled={saving}
             >
               {saving ? 'Speichere...' : 'Speichern'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Version Description Dialog */}
+      <Dialog open={showDescriptionDialog} onOpenChange={handleCancelSave}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Version speichern</DialogTitle>
+            <DialogDescription>
+              Optional: Geben Sie eine kurze Beschreibung für diese Version ein (max. 25 Zeichen, z.B. "Ton formeller gemacht").
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Label htmlFor="version-description">Beschreibung (optional)</Label>
+            <Textarea
+              id="version-description"
+              value={versionDescription}
+              onChange={(e) => {
+                // Begrenze auf 25 Zeichen
+                const text = e.target.value
+                if (text.length <= 25) {
+                  setVersionDescription(text)
+                }
+              }}
+              placeholder="z.B. 'Ton formeller gemacht', 'Ersten Absatz gekürzt'..."
+              className="mt-2"
+              rows={3}
+              maxLength={25}
+              autoFocus
+              onKeyDown={(e) => {
+                // CMD+Enter oder Ctrl+Enter zum Speichern
+                if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                  e.preventDefault();
+                  if (!saving) {
+                    handleSaveWithDescription();
+                  }
+                }
+                // Escape zum Abbrechen
+                if (e.key === 'Escape') {
+                  e.preventDefault();
+                  handleCancelSave();
+                }
+              }}
+            />
+            <div className="text-xs text-muted-foreground mt-1 text-right">
+              {versionDescription.length}/25 Zeichen
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={handleCancelSave}
+              disabled={saving}
+            >
+              Abbrechen
+            </Button>
+            <Button
+              onClick={handleSaveWithDescription}
+              disabled={saving}
+            >
+              {saving ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Speichere...
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4 mr-2" />
+                  Speichern
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
