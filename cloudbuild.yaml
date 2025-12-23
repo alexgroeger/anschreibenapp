@@ -46,19 +46,16 @@ steps:
     waitFor: ['type-check']
   
   # Push the container image to Container Registry
+  # Push both tags in one step to ensure consistency
   - name: 'gcr.io/cloud-builders/docker'
     entrypoint: 'bash'
     args:
       - '-c'
       - |
         TAG_VERSION=$${SHORT_SHA:-$(date +%Y%m%d-%H%M%S)}
-        docker push gcr.io/$PROJECT_ID/anschreiben-app:$$TAG_VERSION
-    id: 'push-image-sha'
-    waitFor: ['build-image']
-  
-  - name: 'gcr.io/cloud-builders/docker'
-    args: ['push', 'gcr.io/$PROJECT_ID/anschreiben-app:latest']
-    id: 'push-image-latest'
+        docker push gcr.io/$PROJECT_ID/anschreiben-app:$$TAG_VERSION || echo "Failed to push versioned tag, continuing..."
+        docker push gcr.io/$PROJECT_ID/anschreiben-app:latest
+    id: 'push-image'
     waitFor: ['build-image']
   
   # Pre-Deployment: Database Backup
@@ -70,7 +67,7 @@ steps:
         TIMESTAMP=$(date +%Y%m%d-%H%M%S)
         curl -X POST "https://anschreiben-app-411832844870.europe-west1.run.app/api/admin/database/backup" || echo "Backup endpoint not accessible, continuing..."
     id: 'pre-deploy-backup'
-    waitFor: ['push-image-latest']
+    waitFor: ['push-image']
   
   # Deploy container image to Cloud Run
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
