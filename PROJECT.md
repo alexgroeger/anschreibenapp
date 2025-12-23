@@ -267,7 +267,7 @@ Eine Web-App, die Bewerbungsschreiben basierend auf Jobanzeigen (URL/Datei) und 
 ## Dependencies
 
 - `better-sqlite3` - SQLite Datenbank
-- `pdf-parse` - PDF-Parsing (für zukünftige PDF-Upload-Funktionalität)
+- `pdfjs-dist` - PDF-Parsing (Mozilla PDF.js für PDF-Upload-Funktionalität)
 - `date-fns` - Datums-Formatierung
 - `@ai-sdk/google` - Google Gemini Integration
 - `ai` - Vercel AI SDK

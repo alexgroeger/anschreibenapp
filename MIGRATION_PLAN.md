@@ -63,7 +63,7 @@ Dieser Plan beschreibt die schrittweise Aktualisierung aller verwendeten Framewo
 - `autoprefixer`, `postcss`, `tailwindcss` (innerhalb v3)
 - `@radix-ui/*` Komponenten
 - `class-variance-authority`, `clsx`, `tailwind-merge`
-- `date-fns`, `lucide-react`, `mammoth`, `pdf-parse`, `react-markdown`, `remark-gfm`
+- `date-fns`, `lucide-react`, `mammoth`, `pdfjs-dist`, `react-markdown`, `remark-gfm`
 - `better-sqlite3`, `@types/better-sqlite3`
 
 **Schritte:**

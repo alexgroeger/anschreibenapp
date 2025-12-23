@@ -77,7 +77,7 @@ Das README sollte aktualisiert werden mit:
 ### Mittelfristig
 
 4. **PDF-Upload für CV**
-   - PDF-Parsing implementieren (pdf-parse ist bereits installiert)
+   - PDF-Parsing implementiert (pdfjs-dist wird verwendet)
    - Automatische Text-Extraktion aus PDF
 
 5. **Job-URL-Parsing**
