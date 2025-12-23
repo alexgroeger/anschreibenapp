@@ -61,6 +61,46 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Load and format favorite formulations
+    const favoriteFormulationsText = settings.favorite_formulations || '';
+    let favoriteFormulationsSection = '';
+    if (favoriteFormulationsText.trim()) {
+      const formulations = favoriteFormulationsText
+        .split('\n')
+        .map(line => line.trim())
+        .filter(line => line.length > 0);
+      
+      if (formulations.length > 0) {
+        favoriteFormulationsSection = `**WICHTIG - Favorisierte Formulierungen:**
+Die folgenden Formulierungen sollen BEVORZUGT im Anschreiben verwendet werden, wenn sie passend sind:
+${formulations.map(f => `- "${f}"`).join('\n')}
+
+Nutze diese Formulierungen aktiv und bevorzuge sie gegenüber anderen ähnlichen Formulierungen, wenn sie zum Kontext passen.
+
+`;
+      }
+    }
+
+    // Load and format excluded formulations
+    const excludedFormulationsText = settings.excluded_formulations || '';
+    let excludedFormulationsSection = '';
+    if (excludedFormulationsText.trim()) {
+      const formulations = excludedFormulationsText
+        .split('\n')
+        .map(line => line.trim())
+        .filter(line => line.length > 0);
+      
+      if (formulations.length > 0) {
+        excludedFormulationsSection = `**WICHTIG - Ausgeschlossene Formulierungen:**
+Die folgenden Formulierungen dürfen NICHT im Anschreiben verwendet werden:
+${formulations.map(f => `- "${f}"`).join('\n')}
+
+Vermeide diese Formulierungen vollständig und verwende stattdessen alternative, passende Formulierungen.
+
+`;
+      }
+    }
+
     const prompt = generatePrompt
       .replace('{matchResult}', matchResult)
       .replace('{resume}', resume)
@@ -70,7 +110,9 @@ export async function POST(request: NextRequest) {
       .replace('{textLength}', textLength || defaultTextLength)
       .replace('{formality}', formality || defaultFormality)
       .replace('{emphasis}', emphasis || defaultEmphasis)
-      .replace('{jobDescription}', jobDescription);
+      .replace('{jobDescription}', jobDescription)
+      .replace('{favoriteFormulations}', favoriteFormulationsSection)
+      .replace('{excludedFormulations}', excludedFormulationsSection);
 
     const { text } = await generateTextWithFallback(
       prompt,
