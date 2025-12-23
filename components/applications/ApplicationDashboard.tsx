@@ -7,10 +7,12 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Card, CardContent } from "@/components/ui/card"
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import Link from "next/link"
 import { format } from "date-fns"
 import { useRouter } from "next/navigation"
 import * as XLSX from "xlsx"
+import { DocumentSearch } from "@/components/documents/DocumentSearch"
 
 interface Contact {
   id: number
@@ -364,13 +366,22 @@ export function ApplicationDashboard() {
 
   return (
     <div className="space-y-6">
-      <div className="space-y-4">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <Tabs defaultValue="applications" className="w-full">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
           <h2 className="text-2xl font-semibold">Bewerbungen</h2>
-          <Link href="/bewerbung-hinzufuegen">
-            <Button className="w-full sm:w-auto">Neue Bewerbung</Button>
-          </Link>
+          <div className="flex gap-2">
+            <Link href="/bewerbung-hinzufuegen">
+              <Button className="w-full sm:w-auto">Neue Bewerbung</Button>
+            </Link>
+          </div>
         </div>
+        <TabsList>
+          <TabsTrigger value="applications">Bewerbungen</TabsTrigger>
+          <TabsTrigger value="documents">Dokumentensuche</TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="applications" className="space-y-6 mt-6">
+          <div className="space-y-4">
         <div className="flex flex-wrap gap-4 items-end">
           <Input
             placeholder="Firma suchen..."
@@ -612,6 +623,12 @@ export function ApplicationDashboard() {
           )}
         </>
       )}
+        </TabsContent>
+        
+        <TabsContent value="documents" className="mt-6">
+          <DocumentSearch />
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }
