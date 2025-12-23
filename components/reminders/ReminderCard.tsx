@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { format, isPast, isToday, differenceInDays } from "date-fns"
-import { Check, Trash2, Calendar, RotateCcw, Clock, ExternalLink } from "lucide-react"
+import { Check, Trash2, Calendar, RotateCcw, Clock, ExternalLink, Pencil } from "lucide-react"
 import Link from "next/link"
 
 export interface Reminder {
@@ -162,25 +162,38 @@ export function ReminderCard({
                 e.stopPropagation()
                 onUncomplete(reminder.id)
               }}
-              className="h-6 w-6 p-0"
+              className="h-6 px-2 text-xs"
               title="Wiedereröffnen"
             >
-              <RotateCcw className="h-3 w-3" />
+              <RotateCcw className="h-3 w-3 mr-1" />
+              Wiedereröffnen
             </Button>
           ) : (
             <Button
               size="sm"
-              variant="ghost"
+              variant="default"
               onClick={(e) => {
                 e.stopPropagation()
                 onComplete(reminder.id)
               }}
-              className="h-6 w-6 p-0"
+              className="h-6 px-2 text-xs"
               title="Erledigt"
             >
-              <Check className="h-3 w-3" />
+              erledigt
             </Button>
           )}
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={(e) => {
+              e.stopPropagation()
+              onEdit(reminder)
+            }}
+            className="h-6 w-6 p-0"
+            title="Bearbeiten"
+          >
+            <Pencil className="h-3 w-3" />
+          </Button>
           {reminder.application_id && (
             <Link href={`/dashboard/${reminder.application_id}`} onClick={(e) => e.stopPropagation()}>
               <Button

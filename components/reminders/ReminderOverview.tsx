@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { ReminderCard, Reminder } from "./ReminderCard"
 import { ReminderCalendar } from "./ReminderCalendar"
+import { ReminderForm } from "./ReminderForm"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { format, isToday, startOfDay, differenceInDays } from "date-fns"
 import { Calendar as CalendarIcon, AlertTriangle, Clock } from "lucide-react"
@@ -10,6 +11,8 @@ import { Calendar as CalendarIcon, AlertTriangle, Clock } from "lucide-react"
 export function ReminderOverview() {
   const [reminders, setReminders] = useState<Reminder[]>([])
   const [loading, setLoading] = useState(true)
+  const [formOpen, setFormOpen] = useState(false)
+  const [editingReminder, setEditingReminder] = useState<Reminder | null>(null)
 
   useEffect(() => {
     // First sync reminders, then load them
@@ -98,6 +101,45 @@ export function ReminderOverview() {
   const groupedReminders = groupReminders(reminders)
   const hasReminders = reminders.length > 0
 
+  const handleEdit = (reminder: Reminder) => {
+    setEditingReminder(reminder)
+    setFormOpen(true)
+  }
+
+  const handleSave = async (reminderData: Partial<Reminder>) => {
+    try {
+      let response: Response
+      if (editingReminder) {
+        // Update existing reminder
+        response = await fetch(`/api/reminders/${editingReminder.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(reminderData),
+        })
+      } else {
+        // Create new reminder
+        response = await fetch("/api/reminders", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(reminderData),
+        })
+      }
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        const errorMessage = errorData.error || `Failed to ${editingReminder ? 'update' : 'create'} reminder`
+        throw new Error(errorMessage)
+      }
+      
+      await loadReminders()
+      setFormOpen(false)
+      setEditingReminder(null)
+    } catch (error) {
+      console.error("Error saving reminder:", error)
+      alert(`Fehler beim ${editingReminder ? 'Aktualisieren' : 'Erstellen'} der Erinnerung`)
+    }
+  }
+
   if (loading) {
     return (
       <Card>
@@ -109,6 +151,7 @@ export function ReminderOverview() {
   }
 
   return (
+    <>
     <Card>
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
@@ -157,7 +200,7 @@ export function ReminderOverview() {
                             await fetch(`/api/reminders/${reminder.id}/complete`, { method: "PATCH" })
                             loadReminders()
                           }}
-                          onEdit={() => {}}
+                          onEdit={handleEdit}
                           onDelete={async () => {
                             await fetch(`/api/reminders/${reminder.id}`, { method: "DELETE" })
                             loadReminders()
@@ -184,7 +227,7 @@ export function ReminderOverview() {
                             await fetch(`/api/reminders/${reminder.id}/complete`, { method: "PATCH" })
                             loadReminders()
                           }}
-                          onEdit={() => {}}
+                          onEdit={handleEdit}
                           onDelete={async () => {
                             await fetch(`/api/reminders/${reminder.id}`, { method: "DELETE" })
                             loadReminders()
@@ -211,7 +254,7 @@ export function ReminderOverview() {
                             await fetch(`/api/reminders/${reminder.id}/complete`, { method: "PATCH" })
                             loadReminders()
                           }}
-                          onEdit={() => {}}
+                          onEdit={handleEdit}
                           onDelete={async () => {
                             await fetch(`/api/reminders/${reminder.id}`, { method: "DELETE" })
                             loadReminders()
@@ -238,7 +281,7 @@ export function ReminderOverview() {
                             await fetch(`/api/reminders/${reminder.id}/complete`, { method: "PATCH" })
                             loadReminders()
                           }}
-                          onEdit={() => {}}
+                          onEdit={handleEdit}
                           onDelete={async () => {
                             await fetch(`/api/reminders/${reminder.id}`, { method: "DELETE" })
                             loadReminders()
@@ -280,7 +323,7 @@ export function ReminderOverview() {
                             await fetch(`/api/reminders/${reminder.id}/complete`, { method: "PATCH" })
                             loadReminders()
                           }}
-                          onEdit={() => {}}
+                          onEdit={handleEdit}
                           onDelete={async () => {
                             await fetch(`/api/reminders/${reminder.id}`, { method: "DELETE" })
                             loadReminders()
@@ -307,7 +350,7 @@ export function ReminderOverview() {
                             await fetch(`/api/reminders/${reminder.id}/complete`, { method: "PATCH" })
                             loadReminders()
                           }}
-                          onEdit={() => {}}
+                          onEdit={handleEdit}
                           onDelete={async () => {
                             await fetch(`/api/reminders/${reminder.id}`, { method: "DELETE" })
                             loadReminders()
@@ -334,7 +377,7 @@ export function ReminderOverview() {
                             await fetch(`/api/reminders/${reminder.id}/complete`, { method: "PATCH" })
                             loadReminders()
                           }}
-                          onEdit={() => {}}
+                          onEdit={handleEdit}
                           onDelete={async () => {
                             await fetch(`/api/reminders/${reminder.id}`, { method: "DELETE" })
                             loadReminders()
@@ -361,7 +404,7 @@ export function ReminderOverview() {
                             await fetch(`/api/reminders/${reminder.id}/complete`, { method: "PATCH" })
                             loadReminders()
                           }}
-                          onEdit={() => {}}
+                          onEdit={handleEdit}
                           onDelete={async () => {
                             await fetch(`/api/reminders/${reminder.id}`, { method: "DELETE" })
                             loadReminders()
@@ -377,6 +420,20 @@ export function ReminderOverview() {
         )}
       </CardContent>
     </Card>
+
+    <ReminderForm
+      open={formOpen}
+      onOpenChange={(open) => {
+        setFormOpen(open)
+        if (!open) {
+          setEditingReminder(null)
+        }
+      }}
+      reminder={editingReminder}
+      applicationId={editingReminder?.application_id || null}
+      onSave={handleSave}
+    />
+    </>
   )
 }
 
