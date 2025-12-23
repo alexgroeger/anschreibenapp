@@ -15,6 +15,11 @@ const nextConfig = {
         // Disable worker for server-side rendering
         'pdfjs-dist/build/pdf.worker.mjs': false,
         'pdfjs-dist/build/pdf.worker.js': false,
+        'pdfjs-dist/legacy/build/pdf.worker.mjs': false,
+        'pdfjs-dist/legacy/build/pdf.worker.js': false,
+        // Also disable any worker imports
+        'pdf.worker.mjs': false,
+        'pdf.worker.js': false,
       };
       
       // Ensure pdfjs-dist and mammoth are bundled (not externalized)

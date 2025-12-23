@@ -12,7 +12,32 @@ const getPdfjs = async () => {
       const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
       // The module exports named exports, not default
       pdfjsModule = pdfjsLib;
-      console.log('pdfjs-dist loaded successfully');
+      
+      // Disable worker for Node.js server environment
+      // In Node.js, we don't need workers - we can parse directly in the main thread
+      // Set workerSrc to an empty string or disable it completely
+      if (pdfjsModule.GlobalWorkerOptions) {
+        // Try to completely disable the worker
+        // Setting it to empty string or null should prevent worker initialization
+        pdfjsModule.GlobalWorkerOptions.workerSrc = '';
+        
+        // Also try to set it to a non-existent path to force main thread execution
+        // This is a workaround for the worker initialization issue
+        try {
+          // Override the worker setup to prevent it from trying to load
+          const originalWorkerSrc = pdfjsModule.GlobalWorkerOptions.workerSrc;
+          Object.defineProperty(pdfjsModule.GlobalWorkerOptions, 'workerSrc', {
+            get: () => '',
+            set: () => {}, // Ignore any attempts to set it
+            configurable: true,
+          });
+        } catch (e) {
+          // If that doesn't work, just leave it as empty string
+          pdfjsModule.GlobalWorkerOptions.workerSrc = '';
+        }
+      }
+      
+      console.log('pdfjs-dist loaded successfully (worker disabled for server)');
       
       if (!pdfjsModule) {
         throw new Error('pdfjs-dist module returned undefined or null');
@@ -73,10 +98,18 @@ export async function parsePDF(file: File): Promise<string> {
     }
     
     // Load the PDF document
+    // Disable worker explicitly for Node.js server environment
+    // In Node.js, we parse directly without workers
     const loadingTask = getDocument({
       data: uint8Array,
       useSystemFonts: true,
       verbosity: 0, // Suppress warnings
+      // Disable all worker-related features for Node.js
+      useWorkerFetch: false,
+      isEvalSupported: false,
+      // Force main thread execution
+      disableAutoFetch: false,
+      disableStream: false,
     });
     
     const pdfDocument = await loadingTask.promise;
