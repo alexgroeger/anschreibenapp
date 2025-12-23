@@ -1,6 +1,6 @@
 # Stage 1: Dependencies
-FROM node:18-alpine AS deps
-RUN apk add --no-cache libc6-compat python3 make g++
+FROM node:18-slim AS deps
+RUN apt-get update && apt-get install -y python3 make g++ && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 
 # Copy package files
@@ -8,7 +8,7 @@ COPY package.json package-lock.json* ./
 RUN npm ci
 
 # Stage 2: Builder
-FROM node:18-alpine AS builder
+FROM node:18-slim AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
@@ -20,14 +20,14 @@ ENV NEXT_TELEMETRY_DISABLED 1
 RUN npm run build
 
 # Stage 3: Runner
-FROM node:18-alpine AS runner
+FROM node:18-slim AS runner
 WORKDIR /app
 
 ENV NODE_ENV production
 ENV NEXT_TELEMETRY_DISABLED 1
 
 # Install runtime dependencies for better-sqlite3
-RUN apk add --no-cache libc6-compat
+RUN apt-get update && apt-get install -y libsqlite3-0 && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user
 RUN addgroup --system --gid 1001 nodejs
@@ -39,6 +39,10 @@ COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 # Ensure public directory exists (standalone includes it, but we ensure it's accessible)
 RUN mkdir -p /app/public
+
+# Copy node_modules to ensure better-sqlite3 native module is available
+# better-sqlite3 is a native module that needs to be present at runtime
+COPY --from=deps /app/node_modules ./node_modules
 
 # Copy prompts directory - required for admin API to write prompt updates
 # The admin API writes updated prompts to files in this directory at runtime
