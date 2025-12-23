@@ -1,0 +1,9 @@
+{
+  "sampleJobDescription": {
+    "text": "Wir suchen einen erfahrenen Software-Entwickler (m/w/d) für unser Team in Berlin.\n\nIhre Aufgaben:\n- Entwicklung von Web-Anwendungen mit React und TypeScript\n- Zusammenarbeit in einem agilen Team\n- Code-Reviews und Qualitätssicherung\n\nAnforderungen:\n- Abgeschlossenes Studium oder vergleichbare Qualifikation\n- Mehrjährige Erfahrung mit React und TypeScript\n- Gute Kenntnisse in Node.js und REST-APIs\n- Teamfähigkeit und Kommunikationsstärke\n\nWir bieten:\n- Flexible Arbeitszeiten\n- Homeoffice-Möglichkeiten\n- Entwicklungsmöglichkeiten\n\nBewerbungen richten Sie bitte an: bewerbung@example.com\n\nKontakt:\nMax Mustermann\nTel: +49 30 12345678\n\nBewerbungsfrist: 31.12.2024"
+  },
+  "minimalJobDescription": {
+    "text": "Software-Entwickler gesucht. React, TypeScript, Node.js. Vollzeit. Berlin."
+  }
+}
+

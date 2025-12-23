@@ -111,6 +111,25 @@ export function initDatabase(): Database.Database {
       FOREIGN KEY (application_id) REFERENCES applications(id) ON DELETE CASCADE,
       FOREIGN KEY (version_id) REFERENCES cover_letter_versions(id) ON DELETE SET NULL
     );
+
+    CREATE TABLE IF NOT EXISTS reminders (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      application_id INTEGER,
+      title TEXT NOT NULL,
+      description TEXT,
+      due_date DATETIME NOT NULL,
+      reminder_type TEXT NOT NULL DEFAULT 'custom',
+      status TEXT DEFAULT 'pending',
+      is_recurring INTEGER DEFAULT 0,
+      recurrence_pattern TEXT,
+      recurrence_interval INTEGER DEFAULT 1,
+      recurrence_end_date DATETIME,
+      next_occurrence DATETIME,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      completed_at DATETIME,
+      FOREIGN KEY (application_id) REFERENCES applications(id) ON DELETE CASCADE
+    );
   `);
   
   // Add match_result column to applications table if it doesn't exist
@@ -143,6 +162,8 @@ export function initDatabase(): Database.Database {
     { key: 'default_focus', value: 'skills', category: 'generation', description: 'Standard-Fokus' },
     { key: 'cover_letter_min_words', value: '300', category: 'generation', description: 'Minimale Anschreiben-Länge (Wörter)' },
     { key: 'cover_letter_max_words', value: '400', category: 'generation', description: 'Maximale Anschreiben-Länge (Wörter)' },
+    { key: 'excluded_formulations', value: '', category: 'generation', description: 'Ausgeschlossene Formulierungen (eine pro Zeile)' },
+    { key: 'favorite_formulations', value: '', category: 'generation', description: 'Favorisierte Formulierungen (eine pro Zeile)' },
   ];
 
   const insertSetting = db.prepare(`
@@ -164,6 +185,10 @@ export function initDatabase(): Database.Database {
     CREATE INDEX IF NOT EXISTS idx_cover_letter_versions_created_at ON cover_letter_versions(created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_cover_letter_suggestions_application_id ON cover_letter_suggestions(application_id);
     CREATE INDEX IF NOT EXISTS idx_cover_letter_suggestions_status ON cover_letter_suggestions(status);
+    CREATE INDEX IF NOT EXISTS idx_reminders_application_id ON reminders(application_id);
+    CREATE INDEX IF NOT EXISTS idx_reminders_due_date ON reminders(due_date);
+    CREATE INDEX IF NOT EXISTS idx_reminders_status ON reminders(status);
+    CREATE INDEX IF NOT EXISTS idx_reminders_next_occurrence ON reminders(next_occurrence);
   `);
   
   return db;

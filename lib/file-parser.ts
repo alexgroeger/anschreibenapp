@@ -1,27 +1,45 @@
 // These modules are loaded at runtime using require() since they're CommonJS
 // This file is only used in API routes with runtime = 'nodejs', so require() is available
 // We use lazy loading to avoid issues when this file is imported in non-Node.js contexts
-let pdfParseModule: any = null;
+let pdfjsModule: any = null;
 let mammothModule: any = null;
 
-const getPdfParse = () => {
-  if (!pdfParseModule) {
+const getPdfjs = async () => {
+  if (!pdfjsModule) {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      pdfParseModule = require('pdf-parse');
-    } catch (error) {
-      console.error('Failed to load pdf-parse:', error);
-      throw new Error('pdf-parse module not available');
+      // pdfjs-dist v4 uses ESM, so we need to use dynamic import
+      // Next.js supports dynamic imports in API routes
+      const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
+      // The module exports named exports, not default
+      pdfjsModule = pdfjsLib;
+      console.log('pdfjs-dist loaded successfully');
+      
+      if (!pdfjsModule) {
+        throw new Error('pdfjs-dist module returned undefined or null');
+      }
+    } catch (error: any) {
+      console.error('Failed to load pdfjs-dist:', error);
+      console.error('Error details:', {
+        message: error.message,
+        stack: error.stack,
+        name: error.name,
+        code: error.code,
+      });
+      const errorMessage = error.message || 'Unknown error';
+      const errorWithContext = new Error(`pdfjs-dist module not available: ${errorMessage}`);
+      (errorWithContext as any).originalError = error;
+      throw errorWithContext;
     }
   }
-  return pdfParseModule;
+  return pdfjsModule;
 };
 
 const getMammoth = () => {
   if (!mammothModule) {
     try {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
-      mammothModule = require('mammoth');
+      const required = require('mammoth');
+      mammothModule = required.default || required;
     } catch (error) {
       console.error('Failed to load mammoth:', error);
       throw new Error('mammoth module not available');
@@ -31,16 +49,61 @@ const getMammoth = () => {
 };
 
 /**
- * Parse a PDF file and extract text content
+ * Parse a PDF file and extract text content using pdfjs-dist
  */
 export async function parsePDF(file: File): Promise<string> {
   const arrayBuffer = await file.arrayBuffer();
-  const buffer = Buffer.from(arrayBuffer);
+  const uint8Array = new Uint8Array(arrayBuffer);
   
   try {
-    const pdfParse = getPdfParse();
-    const data = await pdfParse(buffer);
-    return data.text;
+    const pdfjs = await getPdfjs();
+    
+    // Get the getDocument function from pdfjs-dist
+    // The module exports getDocument as a named export
+    const getDocument = pdfjs.getDocument;
+    
+    if (!getDocument || typeof getDocument !== 'function') {
+      // Log the structure for debugging
+      console.error('pdfjs-dist structure:', {
+        hasGetDocument: !!pdfjs.getDocument,
+        keys: Object.keys(pdfjs).slice(0, 10),
+        type: typeof pdfjs,
+      });
+      throw new Error('getDocument function not found in pdfjs-dist');
+    }
+    
+    // Load the PDF document
+    const loadingTask = getDocument({
+      data: uint8Array,
+      useSystemFonts: true,
+      verbosity: 0, // Suppress warnings
+    });
+    
+    const pdfDocument = await loadingTask.promise;
+    const numPages = pdfDocument.numPages;
+    
+    // Extract text from all pages
+    const textParts: string[] = [];
+    
+    for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+      const page = await pdfDocument.getPage(pageNum);
+      const textContent = await page.getTextContent();
+      
+      // Combine all text items from the page
+      const pageText = textContent.items
+        .map((item: any) => item.str)
+        .join(' ');
+      
+      textParts.push(pageText);
+    }
+    
+    const fullText = textParts.join('\n\n');
+    
+    if (!fullText || fullText.trim().length === 0) {
+      throw new Error('PDF appears to be empty or contains no extractable text');
+    }
+    
+    return fullText;
   } catch (error: any) {
     console.error('PDF parsing error:', error);
     console.error('Error details:', {
@@ -107,3 +170,4 @@ export async function parseFile(file: File): Promise<string> {
 
 // isSupportedFileType has been moved to lib/file-utils.ts
 // to avoid importing this file (which contains require()) in client components
+

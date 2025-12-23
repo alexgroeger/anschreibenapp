@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDatabase, getCachedStatement } from '@/lib/database/client';
+import { getDatabase, getCachedStatement, syncDatabaseAfterWrite } from '@/lib/database/client';
 
 // GET: Alle Versionen einer Bewerbung abrufen
 export async function GET(
@@ -110,6 +110,9 @@ export async function POST(
       .prepare('SELECT * FROM cover_letter_versions WHERE id = ?')
       .get(versionId) as any;
     
+    // Sync to cloud storage after write
+    await syncDatabaseAfterWrite();
+    
     return NextResponse.json(
       { version },
       { status: 201 }
@@ -122,3 +125,4 @@ export async function POST(
     );
   }
 }
+

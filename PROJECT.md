@@ -10,6 +10,7 @@ Eine Web-App, die Bewerbungsschreiben basierend auf Jobanzeigen (URL/Datei) und 
 - **KI-Integration:** Vercel AI SDK mit Google Gemini 1.5 Pro
 - **Datenbank:** SQLite mit better-sqlite3 (Single-User-App)
 - **Deployment:** Docker-Container (Node.js Umgebung)
+- **Plattform:** Desktop-only Anwendung (keine Mobile/Tablet Optimierung)
 
 ### Dependency-Management Richtlinie
 **Wichtig:** Es dürfen nur aktuelle und unterstützte Frameworks und Bibliotheken verwendet werden. 

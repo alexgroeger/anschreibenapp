@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDatabase, getCachedStatement } from '@/lib/database/client';
+import { getDatabase, getCachedStatement, syncDatabaseAfterWrite } from '@/lib/database/client';
+import { syncDeadlineReminder } from '@/lib/reminders/deadline-sync';
 
 export async function GET(request: NextRequest) {
   try {
@@ -210,6 +211,19 @@ export async function POST(request: NextRequest) {
     const applicationContacts = db
       .prepare('SELECT * FROM contact_persons WHERE application_id = ?')
       .all(applicationId);
+    
+    // Create deadline reminder if deadline exists
+    if (deadline) {
+      try {
+        await syncDeadlineReminder(applicationId, deadline, company, position);
+      } catch (error) {
+        console.error('Error syncing deadline reminder:', error);
+        // Don't fail the request if reminder creation fails
+      }
+    }
+    
+    // Sync to cloud storage after write
+    await syncDatabaseAfterWrite();
     
     return NextResponse.json(
       { application: { ...application, contacts: applicationContacts } },

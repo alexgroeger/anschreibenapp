@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDatabase } from '@/lib/database/client';
+import { getDatabase, syncDatabaseAfterWrite } from '@/lib/database/client';
 import { parseFile } from '@/lib/file-parser';
 
-// Force Node.js runtime for file parsing (pdf-parse and mammoth require Node.js)
+// Force Node.js runtime for file parsing (pdfjs-dist and mammoth require Node.js)
 export const runtime = 'nodejs';
 
 export async function GET() {
@@ -86,6 +86,9 @@ export async function POST(request: NextRequest) {
     const result = db
       .prepare('INSERT INTO old_cover_letters (content, company, position) VALUES (?, ?, ?)')
       .run(content.trim(), company, position);
+    
+    // Sync to cloud storage after write
+    await syncDatabaseAfterWrite();
     
     return NextResponse.json(
       { message: 'Cover letter saved successfully', id: result.lastInsertRowid },

@@ -1,13 +1,24 @@
 import Database from 'better-sqlite3';
 import { initDatabase } from './init';
+import { syncDatabaseOnStartup, uploadDatabaseToCloud } from '@/lib/storage/sync';
 
 let dbInstance: Database.Database | null = null;
+let syncOnStartupDone = false;
 
 // Cache for prepared statements to improve performance
 const statementCache = new Map<string, Database.Statement>();
 
 export function getDatabase(): Database.Database {
   if (!dbInstance) {
+    // Sync with Cloud Storage before initializing database (only once)
+    if (!syncOnStartupDone) {
+      syncOnStartupDone = true;
+      // Run sync asynchronously to not block database initialization
+      syncDatabaseOnStartup().catch((error) => {
+        console.error('Error during startup sync:', error);
+      });
+    }
+    
     dbInstance = initDatabase();
     try {
       // Enable WAL mode for better concurrent read performance
@@ -22,6 +33,18 @@ export function getDatabase(): Database.Database {
     }
   }
   return dbInstance;
+}
+
+/**
+ * Sync database to Cloud Storage after write operations
+ * This should be called after important write operations
+ * Runs asynchronously to not block the request
+ */
+export async function syncDatabaseAfterWrite(): Promise<void> {
+  // Run upload asynchronously without blocking
+  uploadDatabaseToCloud().catch((error) => {
+    console.error('Error syncing database to cloud:', error);
+  });
 }
 
 /**

@@ -50,9 +50,17 @@ Eine Web-App, die Bewerbungsschreiben basierend auf Jobanzeigen (URL/Datei) und 
    ```bash
    # Google Gemini API Key
    GOOGLE_GENERATIVE_AI_API_KEY=dein-api-key-hier
+   
+   # Optional: Cloud Storage für persistente Datenbank
+   # GCS_BUCKET_NAME=ihr-projekt-id-anschreiben-data
    ```
 
    **Wichtig:** Der Variablenname muss exakt `GOOGLE_GENERATIVE_AI_API_KEY` sein (nicht `GENERATION`).
+   
+   **Cloud Storage (Optional):** Für lokale Entwicklung mit Cloud Storage:
+   ```bash
+   gcloud auth application-default login
+   ```
 
 4. **Development-Server starten**
    ```bash
@@ -144,6 +152,29 @@ Die App verwendet SQLite für die lokale Datenspeicherung. Die Datenbank wird au
 - `settings` - System-Einstellungen
 - `prompt_versions` - Prompt-Versionen
 
+### Persistente Speicherung mit Cloud Storage
+
+Für persistente Speicherung in Cloud Run oder anderen Container-Umgebungen kann die Datenbank automatisch mit Google Cloud Storage synchronisiert werden:
+
+**Schnellstart:**
+```bash
+# Setup-Script ausführen (interaktiv)
+./scripts/setup-cloud-storage.sh
+
+# Oder manuell:
+gsutil mb -l europe-west1 gs://ihr-projekt-id-anschreiben-data
+export GCS_BUCKET_NAME=ihr-projekt-id-anschreiben-data
+```
+
+**Automatische Synchronisation:**
+- Beim Start: Lädt Datenbank von Cloud Storage (falls vorhanden)
+- Nach Schreiboperationen: Lädt Datenbank automatisch zu Cloud Storage hoch
+- Manuelle Synchronisation: Über Admin-Panel (`/admin/database`) oder API-Endpoint `/api/admin/database/sync`
+
+**Dokumentation:**
+- [CLOUD_STORAGE_SETUP.md](./CLOUD_STORAGE_SETUP.md) - Detaillierte Setup-Anleitung
+- [DEPLOYMENT_CHECKLIST.md](./DEPLOYMENT_CHECKLIST.md) - Deployment-Checkliste
+
 ## Scripts
 
 ```bash
@@ -155,17 +186,34 @@ npm run lint     # Code-Linting
 
 ## Deployment
 
-### Vercel (empfohlen)
+### Google Cloud Run (Empfohlen für persistente Datenbank)
+
+Die App unterstützt automatische Cloud Storage Synchronisation für persistente Datenbank-Speicherung.
+
+**Schnellstart:**
+1. Cloud Storage Bucket erstellen
+2. Environment-Variable `GCS_BUCKET_NAME` setzen
+3. Deploy!
+
+**Detaillierte Anleitung:** Siehe [DEPLOYMENT.md](./DEPLOYMENT.md) und [CLOUD_STORAGE_SETUP.md](./CLOUD_STORAGE_SETUP.md)
+
+### Vercel
 
 1. Verbinde dein GitHub-Repository mit Vercel
 2. Füge die Environment-Variable `GOOGLE_GENERATIVE_AI_API_KEY` hinzu
 3. Deploy!
 
-### Docker (geplant)
+**Hinweis:** Vercel unterstützt keine persistente Dateispeicherung. Für persistente Datenbank verwenden Sie Cloud Run mit Cloud Storage.
+
+### Docker
 
 ```bash
 docker build -t anschreiben-app .
-docker run -p 3000:3000 -e GOOGLE_GENERATIVE_AI_API_KEY=your-key anschreiben-app
+docker run -p 3000:3000 \
+  -e GOOGLE_GENERATIVE_AI_API_KEY=your-key \
+  -e GCS_BUCKET_NAME=your-bucket-name \
+  -v $(pwd)/data:/app/data \
+  anschreiben-app
 ```
 
 ## Troubleshooting
@@ -185,8 +233,15 @@ docker run -p 3000:3000 -e GOOGLE_GENERATIVE_AI_API_KEY=your-key anschreiben-app
 
 ## Weitere Informationen
 
+### Projekt-Dokumentation
 - Detaillierte Projekt-Dokumentation: [PROJECT.md](./PROJECT.md)
 - Nächste Schritte: [NEXT_STEPS.md](./NEXT_STEPS.md)
+
+### Cloud Storage Integration
+- Setup-Anleitung: [CLOUD_STORAGE_SETUP.md](./CLOUD_STORAGE_SETUP.md)
+- Deployment-Checkliste: [DEPLOYMENT_CHECKLIST.md](./DEPLOYMENT_CHECKLIST.md)
+- Testing-Guide: [TESTING_GUIDE.md](./TESTING_GUIDE.md)
+- Changelog: [CHANGELOG_CLOUD_STORAGE.md](./CHANGELOG_CLOUD_STORAGE.md)
 
 ## Lizenz
 

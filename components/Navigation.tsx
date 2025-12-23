@@ -15,6 +15,7 @@ import {
   Home,
   ChevronDown,
   Sparkles,
+  Search,
 } from "lucide-react"
 import { useState, useEffect } from "react"
 
@@ -22,15 +23,21 @@ import { useState, useEffect } from "react"
 const mainNavItems = [
   {
     href: "/",
+    label: "Dashboard",
+    icon: BarChart3,
+    description: "Übersicht & Statistiken",
+  },
+  {
+    href: "/bewerbungen",
+    label: "Bewerbungen",
+    icon: Search,
+    description: "Suche & Filter",
+  },
+  {
+    href: "/bewerbung-hinzufuegen",
     label: "Bewerbung hinzufügen",
     icon: FileText,
     description: "Neues Anschreiben generieren",
-  },
-  {
-    href: "/dashboard",
-    label: "Dashboard",
-    icon: BarChart3,
-    description: "Bewerbungen verwalten",
   },
   {
     href: "/resume",

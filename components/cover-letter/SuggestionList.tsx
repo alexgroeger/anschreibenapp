@@ -63,7 +63,7 @@ export function SuggestionList({
     <div className="space-y-4">
       {/* Header mit "Alle akzeptieren" Button */}
       {pendingSuggestions.length > 0 && onAcceptAll && (
-        <Card>
+        <Card className="border-yellow-200">
           <CardContent className="pt-6">
             <Button
               onClick={onAcceptAll}

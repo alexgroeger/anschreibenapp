@@ -10,9 +10,12 @@ export default function DatabasePage() {
   const [loading, setLoading] = useState(true)
   const [backingUp, setBackingUp] = useState(false)
   const [optimizing, setOptimizing] = useState(false)
+  const [syncStatus, setSyncStatus] = useState<any>(null)
+  const [syncing, setSyncing] = useState(false)
 
   useEffect(() => {
     fetchStats()
+    fetchSyncStatus()
   }, [])
 
   const fetchStats = async () => {
@@ -24,6 +27,39 @@ export default function DatabasePage() {
       console.error("Error fetching stats:", error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchSyncStatus = async () => {
+    try {
+      const response = await fetch("/api/admin/database/sync")
+      const data = await response.json()
+      setSyncStatus(data)
+    } catch (error) {
+      console.error("Error fetching sync status:", error)
+    }
+  }
+
+  const handleSync = async (action: 'upload' | 'download') => {
+    setSyncing(true)
+    try {
+      const response = await fetch(`/api/admin/database/sync?action=${action}`, {
+        method: "POST",
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        alert(data.message || `${action === 'upload' ? 'Hochgeladen' : 'Heruntergeladen'} erfolgreich!`)
+        await fetchSyncStatus()
+      } else {
+        const data = await response.json()
+        alert(data.error || `Fehler beim ${action === 'upload' ? 'Hochladen' : 'Herunterladen'}`)
+      }
+    } catch (error) {
+      console.error(`Error ${action === 'upload' ? 'uploading' : 'downloading'}:`, error)
+      alert(`Fehler beim ${action === 'upload' ? 'Hochladen' : 'Herunterladen'}`)
+    } finally {
+      setSyncing(false)
     }
   }
 
@@ -197,6 +233,85 @@ export default function DatabasePage() {
 
         <Card>
           <CardHeader>
+            <CardTitle>Cloud Storage Synchronisation</CardTitle>
+            <CardDescription>
+              {syncStatus?.cloudStorageConfigured 
+                ? `Bucket: ${syncStatus.bucketName || 'Konfiguriert'}` 
+                : 'Nicht konfiguriert - Setzen Sie GCS_BUCKET_NAME'}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {syncStatus?.cloudStorageConfigured ? (
+              <>
+                <div className="text-sm text-muted-foreground">
+                  {syncStatus.message}
+                </div>
+                
+                {/* Local Database Info */}
+                {syncStatus.localFile?.exists && (
+                  <div className="text-xs space-y-1 p-2 bg-muted rounded">
+                    <div className="font-medium">Lokale Datenbank:</div>
+                    <div className="flex justify-between">
+                      <span>Größe:</span>
+                      <span>{(syncStatus.localFile.size / 1024).toFixed(2)} KB</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Geändert:</span>
+                      <span>{new Date(syncStatus.localFile.modified).toLocaleString('de-DE')}</span>
+                    </div>
+                  </div>
+                )}
+                
+                {/* Cloud Database Info */}
+                {syncStatus.cloudFile && (
+                  <div className="text-xs space-y-1 p-2 bg-muted rounded">
+                    <div className="font-medium">Cloud Storage:</div>
+                    {syncStatus.cloudFile.exists ? (
+                      <>
+                        <div className="flex justify-between">
+                          <span>Größe:</span>
+                          <span>{(parseInt(syncStatus.cloudFile.size) / 1024).toFixed(2)} KB</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Zuletzt aktualisiert:</span>
+                          <span>{new Date(syncStatus.cloudFile.updated).toLocaleString('de-DE')}</span>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="text-muted-foreground">Keine Datenbank in Cloud Storage gefunden</div>
+                    )}
+                  </div>
+                )}
+                
+                <div className="space-y-2">
+                  <Button 
+                    onClick={() => handleSync('upload')} 
+                    disabled={syncing} 
+                    className="w-full"
+                  >
+                    {syncing ? "Synchronisiere..." : "Zu Cloud Storage hochladen"}
+                  </Button>
+                  <Button 
+                    onClick={() => handleSync('download')} 
+                    disabled={syncing} 
+                    variant="outline"
+                    className="w-full"
+                  >
+                    {syncing ? "Lade herunter..." : "Von Cloud Storage herunterladen"}
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <div className="text-sm text-muted-foreground">
+                Cloud Storage ist nicht konfiguriert. Setzen Sie die Environment-Variable 
+                <code className="bg-muted px-1 rounded mx-1">GCS_BUCKET_NAME</code> um die Synchronisation zu aktivieren.
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
             <CardTitle>Daten exportieren</CardTitle>
             <CardDescription>Exportieren Sie Daten als JSON</CardDescription>
           </CardHeader>
@@ -235,3 +350,4 @@ export default function DatabasePage() {
     </div>
   )
 }
+

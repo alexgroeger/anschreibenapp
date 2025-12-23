@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDatabase } from '@/lib/database/client';
+import { getDatabase, syncDatabaseAfterWrite } from '@/lib/database/client';
 
 export async function GET() {
   try {
@@ -43,6 +43,9 @@ export async function POST(request: NextRequest) {
         .prepare('UPDATE resume SET content = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
         .run(content, (existing as { id: number }).id);
       
+      // Sync to cloud storage after write
+      await syncDatabaseAfterWrite();
+      
       return NextResponse.json(
         { message: 'Resume updated successfully', id: (existing as { id: number }).id },
         { status: 200 }
@@ -52,6 +55,9 @@ export async function POST(request: NextRequest) {
       const result = db
         .prepare('INSERT INTO resume (content) VALUES (?)')
         .run(content);
+      
+      // Sync to cloud storage after write
+      await syncDatabaseAfterWrite();
       
       return NextResponse.json(
         { message: 'Resume created successfully', id: result.lastInsertRowid },

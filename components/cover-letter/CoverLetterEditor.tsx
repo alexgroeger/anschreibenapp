@@ -62,6 +62,7 @@ export function CoverLetterEditor({
   const [content, setContent] = useState(application.cover_letter || "")
   const [tone, setTone] = useState("professionell")
   const [focus, setFocus] = useState("skills")
+  const [length, setLength] = useState("mittel")
   const [regenerating, setRegenerating] = useState(false)
   const [saving, setSaving] = useState(false)
   const [suggestions, setSuggestions] = useState<Suggestion[]>([])
@@ -191,6 +192,7 @@ export function CoverLetterEditor({
           jobDescription: application.job_description,
           tone,
           focus,
+          textLength: length,
         }),
       })
 
@@ -470,22 +472,25 @@ export function CoverLetterEditor({
   return (
     <>
       <Sheet open={isOpen} onOpenChange={handleClose}>
-        <SheetContent side="bottom" className="h-[80vh] flex flex-col">
-          <SheetHeader>
+        <SheetContent side="bottom" className="h-[90vh] flex flex-col overflow-hidden">
+          <SheetHeader className="sr-only">
             <SheetTitle>Anschreiben Editor</SheetTitle>
             <SheetDescription>
-              Erstellen und bearbeiten Sie Ihr Anschreiben mit KI-Unterstützung
+              Bearbeiten Sie Ihr Anschreiben mit Hilfe des KI-Assistenten
             </SheetDescription>
           </SheetHeader>
-
-          <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-3 gap-4 mt-4">
-            {/* Main Editor Area - 70% on desktop */}
-            <div className="lg:col-span-2 flex flex-col space-y-4">
+          <div className="flex-1 overflow-hidden grid grid-cols-3 gap-4">
+            {/* Main Editor Area - 70% */}
+            <div className="col-span-2 flex flex-col space-y-3 min-h-0 overflow-hidden">
+              {/* Header */}
+              <div className="flex-shrink-0 pb-0">
+                <h2 className="text-lg font-semibold">Anschreiben Editor</h2>
+              </div>
               {/* Toolbar */}
-              <div className="flex items-center gap-2 flex-wrap">
-                <div className="flex-1 grid grid-cols-2 gap-2">
-                  <div className="space-y-1">
-                    <Label htmlFor="tone" className="text-xs">Tonalität</Label>
+              <div className="flex items-end gap-1.5 flex-shrink-0">
+                <div className="flex-1 grid grid-cols-3 gap-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="tone">Tonalität</Label>
                     <Select value={tone} onValueChange={setTone}>
                       <SelectTrigger id="tone" className="h-9">
                         <SelectValue />
@@ -498,8 +503,8 @@ export function CoverLetterEditor({
                     </Select>
                   </div>
 
-                  <div className="space-y-1">
-                    <Label htmlFor="focus" className="text-xs">Fokus</Label>
+                  <div className="space-y-2">
+                    <Label htmlFor="focus">Fokus</Label>
                     <Select value={focus} onValueChange={setFocus}>
                       <SelectTrigger id="focus" className="h-9">
                         <SelectValue />
@@ -511,12 +516,28 @@ export function CoverLetterEditor({
                       </SelectContent>
                     </Select>
                   </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="length">Länge</Label>
+                    <Select value={length} onValueChange={setLength}>
+                      <SelectTrigger id="length" className="h-9">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="kurz">Kurz</SelectItem>
+                        <SelectItem value="mittel">Mittel</SelectItem>
+                        <SelectItem value="lang">Lang</SelectItem>
+                        <SelectItem value="maximal">Maximal (1 A4 Seite)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
 
                 <Button
                   onClick={handleRegenerate}
                   variant="outline"
                   disabled={regenerating || !application.job_description}
+                  size="sm"
                   className="h-9"
                 >
                   {regenerating ? (
@@ -531,12 +552,14 @@ export function CoverLetterEditor({
               </div>
 
               {/* Action Buttons */}
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 flex-shrink-0">
                 <Button
                   onClick={handleUndo}
                   disabled={!canUndo}
                   variant="outline"
                   size="sm"
+                  title="Rückgängig"
+                  className="h-9"
                 >
                   <Undo className="h-4 w-4" />
                 </Button>
@@ -545,6 +568,8 @@ export function CoverLetterEditor({
                   disabled={!canRedo}
                   variant="outline"
                   size="sm"
+                  title="Wiederholen"
+                  className="h-9"
                 >
                   <Redo className="h-4 w-4" />
                 </Button>
@@ -552,7 +577,8 @@ export function CoverLetterEditor({
                   onClick={handleCopy}
                   variant="outline"
                   size="sm"
-                  className={copySuccess ? "bg-green-100" : ""}
+                  className={`h-9 ${copySuccess ? "bg-green-100" : ""}`}
+                  title="Text kopieren"
                 >
                   <Copy className="h-4 w-4 mr-2" />
                   {copySuccess ? "Kopiert!" : "Kopieren"}
@@ -560,7 +586,8 @@ export function CoverLetterEditor({
                 <Button
                   onClick={handleSave}
                   disabled={saving || !hasUnsavedChanges}
-                  className="ml-auto"
+                  size="sm"
+                  className="ml-auto h-9"
                 >
                   <Save className="h-4 w-4 mr-2" />
                   {saving ? 'Speichere...' : 'Speichern'}
@@ -568,19 +595,19 @@ export function CoverLetterEditor({
               </div>
 
               {/* Editor */}
-              <div className="flex-1 flex flex-col min-h-0">
+              <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
                 <Label htmlFor="editor">Anschreiben</Label>
-                <div className="relative flex-1 min-h-[300px]">
+                <div className="relative flex-1 min-h-[300px] overflow-hidden">
                   <Textarea
                     id="editor"
                     value={content}
                     onChange={(e) => handleContentChange(e.target.value)}
-                    className="flex-1 min-h-[300px] font-mono text-sm resize-none"
+                    className="h-full min-h-[300px] font-mono text-sm resize-none overflow-auto"
                     placeholder="Ihr Anschreiben..."
                   />
                   {/* Diff Overlay for suggestions - shows pending suggestions */}
                   {suggestions.filter(s => s.status === 'pending').length > 0 && (
-                    <div className="absolute inset-0 pointer-events-none p-3 font-mono text-sm whitespace-pre-wrap opacity-50">
+                    <div className="absolute inset-0 pointer-events-none p-3 font-mono text-sm whitespace-pre-wrap opacity-50 overflow-hidden">
                       {renderContentWithHighlights()}
                     </div>
                   )}
@@ -588,7 +615,7 @@ export function CoverLetterEditor({
               </div>
 
               {/* Suggestions List */}
-              <div className="max-h-[200px] overflow-y-auto">
+              <div className="flex-shrink-0 max-h-[200px] overflow-y-auto border-t pt-2">
                 <SuggestionList
                   suggestions={suggestions}
                   onAccept={handleAcceptSuggestion}
@@ -599,10 +626,10 @@ export function CoverLetterEditor({
               </div>
             </div>
 
-            {/* Sidebar - Chat and Version History - 30% on desktop */}
-            <div className="lg:col-span-1 flex flex-col space-y-4">
+            {/* Sidebar - Chat and Version History - 30% */}
+            <div className="col-span-1 flex flex-col space-y-3 min-h-0 overflow-hidden pt-0">
               {/* Version History */}
-              <div className="flex-shrink-0">
+              <div className="flex-shrink-0 max-h-[200px] overflow-y-auto">
                 <VersionHistory
                   versions={versions}
                   currentVersionId={currentVersionId}
@@ -613,7 +640,7 @@ export function CoverLetterEditor({
               </div>
 
               {/* Chat */}
-              <div className="flex-1 min-h-0">
+              <div className="flex-1 min-h-0 overflow-hidden">
                 <CoverLetterChat
                   coverLetter={content}
                   matchResult={application.match_result || ''}
@@ -666,3 +693,4 @@ export function CoverLetterEditor({
     </>
   )
 }
+

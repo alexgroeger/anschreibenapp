@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDatabase, getCachedStatement } from '@/lib/database/client';
+import { getDatabase, getCachedStatement, syncDatabaseAfterWrite } from '@/lib/database/client';
+import { syncDeadlineReminder } from '@/lib/reminders/deadline-sync';
 
 export async function GET(
   request: NextRequest,
@@ -58,7 +59,7 @@ export async function PATCH(
     }
     
     const body = await request.json();
-    const { status, sent_at, company, position, cover_letter, match_result } = body;
+    const { status, sent_at, company, position, cover_letter, match_result, deadline } = body;
     
     const db = getDatabase();
     const updates: string[] = [];
@@ -88,6 +89,10 @@ export async function PATCH(
       updates.push('match_result = ?');
       values.push(match_result);
     }
+    if (deadline !== undefined) {
+      updates.push('deadline = ?');
+      values.push(deadline);
+    }
     
     if (updates.length === 0) {
       return NextResponse.json(
@@ -115,6 +120,24 @@ export async function PATCH(
     
     const contacts = getCachedStatement('SELECT * FROM contact_persons WHERE application_id = ?')
       .all(id);
+    
+    // Sync deadline reminder if deadline was updated
+    if (deadline !== undefined) {
+      try {
+        await syncDeadlineReminder(
+          id,
+          deadline,
+          application.company,
+          application.position
+        );
+      } catch (error) {
+        console.error('Error syncing deadline reminder:', error);
+        // Don't fail the request if reminder sync fails
+      }
+    }
+    
+    // Sync to cloud storage after write
+    await syncDatabaseAfterWrite();
     
     return NextResponse.json(
       { application: { ...application, contacts: contacts as any } },
@@ -155,6 +178,9 @@ export async function DELETE(
         { status: 404 }
       );
     }
+    
+    // Sync to cloud storage after delete
+    await syncDatabaseAfterWrite();
     
     return NextResponse.json(
       { message: 'Application deleted successfully' },

@@ -4,7 +4,7 @@ import { getSettings } from '@/lib/database/settings';
 import { generateTextWithFallback } from '@/lib/ai/model-helper';
 import { parseFile } from '@/lib/file-parser';
 
-// Force Node.js runtime for file parsing (pdf-parse and mammoth require Node.js)
+// Force Node.js runtime for file parsing (pdfjs-dist and mammoth require Node.js)
 export const runtime = 'nodejs';
 
 export async function POST(request: NextRequest) {

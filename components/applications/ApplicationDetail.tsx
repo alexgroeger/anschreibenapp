@@ -14,6 +14,7 @@ import { Markdown } from "@/components/ui/markdown"
 import { format } from "date-fns"
 import { Pencil, Save, X, Building2, Briefcase, Calendar, User, Mail, Phone, ExternalLink, Plus, Trash2, Euro, FileText, MapPin, Clock, FileEdit } from "lucide-react"
 import { CoverLetterEditor } from "@/components/cover-letter/CoverLetterEditor"
+import { ReminderList } from "@/components/reminders/ReminderList"
 
 interface Contact {
   id: number
@@ -365,7 +366,7 @@ export function ApplicationDetail() {
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-4 border-b">
+      <div className="flex flex-row justify-between items-center gap-4 pb-4 border-b">
         <div className="flex-1 min-w-0">
           <h1 className="text-3xl font-bold truncate">
             {application.company} - {application.position}
@@ -866,6 +867,11 @@ export function ApplicationDetail() {
             <p className="text-xs text-muted-foreground">
               {application.created_at ? format(new Date(application.created_at), 'dd.MM.yyyy HH:mm') : 'Unbekannt'}
             </p>
+          </div>
+
+          {/* Reminders */}
+          <div className="space-y-2 pt-4 border-t">
+            <ReminderList applicationId={application.id} />
           </div>
         </div>
       </div>

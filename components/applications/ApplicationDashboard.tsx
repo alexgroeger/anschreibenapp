@@ -10,6 +10,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import Link from "next/link"
 import { format } from "date-fns"
 import { useRouter } from "next/navigation"
+import { ReminderOverview } from "@/components/reminders/ReminderOverview"
 
 interface Contact {
   id: number
@@ -196,6 +197,9 @@ export function ApplicationDashboard() {
 
   return (
     <div className="space-y-6">
+      {/* Reminders Overview */}
+      <ReminderOverview />
+      
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <h2 className="text-2xl font-semibold">Bewerbungen</h2>
         <div className="flex flex-wrap gap-4 w-full sm:w-auto">
@@ -218,7 +222,7 @@ export function ApplicationDashboard() {
               <SelectItem value="angenommen">Angenommen</SelectItem>
             </SelectContent>
           </Select>
-          <Link href="/">
+          <Link href="/bewerbung-hinzufuegen">
             <Button className="w-full sm:w-auto">Neue Bewerbung</Button>
           </Link>
         </div>
