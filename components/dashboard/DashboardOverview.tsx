@@ -92,7 +92,6 @@ export function DashboardOverview() {
   const [sent7Days, setSent7Days] = useState<Application[]>([])
   const [sent8to14Days, setSent8to14Days] = useState<Application[]>([])
   const [sentThisMonth, setSentThisMonth] = useState<Application[]>([])
-  const [openTasks, setOpenTasks] = useState<Application[]>([])
   const [selectedApplications, setSelectedApplications] = useState<Application[]>([])
   const [dialogTitle, setDialogTitle] = useState<string>("")
   const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -102,13 +101,12 @@ export function DashboardOverview() {
     setError(null)
     try {
       // Load all data in parallel
-      const [statsRes, inProgressRes, sent7Res, sent8to14Res, sentMonthRes, openTasksRes] = await Promise.all([
+      const [statsRes, inProgressRes, sent7Res, sent8to14Res, sentMonthRes] = await Promise.all([
         fetch('/api/applications/stats'),
         fetch('/api/applications/in-progress'),
         fetch('/api/applications/sent-recently?days=7'),
         fetch('/api/applications/sent-recently?days=14&excludeLast=7'), // Letzte 8-14 Tage (ohne die letzten 7)
         fetch('/api/applications/sent-recently?period=month'),
-        fetch('/api/applications/open-tasks'),
       ])
 
       // Check for errors and log them
@@ -186,21 +184,6 @@ export function DashboardOverview() {
         } catch (e) {
           errors.push('Sent this month: Invalid JSON response')
           console.error('Error parsing sent this month JSON:', e)
-        }
-      }
-
-      // Open Tasks
-      if (!openTasksRes.ok) {
-        const errorData = await openTasksRes.json().catch(() => ({ error: 'Unknown error' }))
-        errors.push(`Open Tasks: ${errorData.error || openTasksRes.statusText}`)
-        console.error('Error fetching open tasks:', errorData)
-      } else {
-        try {
-          const openTasksData = await openTasksRes.json()
-          setOpenTasks(openTasksData.applications || [])
-        } catch (e) {
-          errors.push('Open Tasks: Invalid JSON response')
-          console.error('Error parsing open tasks JSON:', e)
         }
       }
 
@@ -548,35 +531,6 @@ export function DashboardOverview() {
               </div>
             </div>
           </div>
-        </CardContent>
-      </Card>
-
-      {/* Offene Aufgaben */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <FileText className="h-5 w-5" />
-              <CardTitle>Offene Aufgaben</CardTitle>
-            </div>
-            <Badge variant="outline">{openTasks.length}</Badge>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {openTasks.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-4">
-              Keine offenen Aufgaben
-            </p>
-          ) : (
-            <div className="space-y-2">
-              {openTasks.slice(0, 10).map((app) => renderApplicationRow(app, true))}
-              {openTasks.length > 10 && (
-                <p className="text-xs text-muted-foreground text-center pt-2">
-                  ... und {openTasks.length - 10} weitere
-                </p>
-              )}
-            </div>
-          )}
         </CardContent>
       </Card>
 
