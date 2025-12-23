@@ -243,22 +243,14 @@ export function DashboardOverview() {
     return (
       <div
         key={application.id}
-        className={`p-2 border rounded-md hover:bg-muted/50 transition-colors ${isUrgent ? 'border-red-300 bg-red-50/30' : ''}`}
+        onClick={() => handleApplicationClick(application.id)}
+        className={`p-2 border rounded-md hover:bg-muted/50 transition-colors cursor-pointer ${isUrgent ? 'border-red-300 bg-red-50/30' : ''}`}
       >
         <div className="flex items-center gap-2">
           {/* Company/Title */}
-          <Link 
-            href={`/dashboard/${application.id}`} 
-            className="flex-shrink-0"
-            onClick={(e) => {
-              e.stopPropagation()
-              handleApplicationClick(application.id)
-            }}
-          >
-            <span className={`text-sm font-medium hover:underline ${isUrgent ? 'text-red-600' : ''}`}>
-              {application.company}
-            </span>
-          </Link>
+          <span className={`text-sm font-medium flex-shrink-0 ${isUrgent ? 'text-red-600' : ''}`}>
+            {application.company}
+          </span>
           
           {/* Info badges and date - direkt neben dem Titel */}
           <div className="flex items-center gap-1.5 flex-1 min-w-0">
@@ -305,7 +297,7 @@ export function DashboardOverview() {
           </div>
           
           {/* Action - rechts */}
-          <div className="flex items-center gap-1 flex-shrink-0">
+          <div className="flex items-center gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
             <Link href={`/dashboard/${application.id}`}>
               <Button
                 size="sm"

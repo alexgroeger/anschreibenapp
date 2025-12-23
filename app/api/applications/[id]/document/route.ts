@@ -56,8 +56,8 @@ export async function GET(
     const contentType = application.job_document_type || 'application/octet-stream';
     const filename = application.job_document_filename || 'document';
 
-    // Return the file (Buffer is compatible with NextResponse)
-    return new NextResponse(fileBuffer.buffer, {
+    // Return the file (convert Buffer to Uint8Array for NextResponse)
+    return new NextResponse(new Uint8Array(fileBuffer), {
       headers: {
         'Content-Type': contentType,
         'Content-Disposition': view 

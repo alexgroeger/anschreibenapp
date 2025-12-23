@@ -99,23 +99,22 @@ export function ReminderCard({
     }
   }
   
+  const handleCardClick = () => {
+    if (reminder.application_id) {
+      window.location.href = `/dashboard/${reminder.application_id}`
+    }
+  }
+
   return (
     <div 
-      className={`p-2 border rounded-md hover:bg-muted/50 transition-colors ${isOverdue ? 'border-red-300 bg-red-50/30' : ''}`}
+      onClick={handleCardClick}
+      className={`p-2 border rounded-md hover:bg-muted/50 transition-colors ${isOverdue ? 'border-red-300 bg-red-50/30' : ''} ${reminder.application_id ? 'cursor-pointer' : ''}`}
     >
       <div className="flex items-center gap-2">
         {/* Title */}
-        {reminder.application_id ? (
-          <Link href={`/dashboard/${reminder.application_id}`} className="flex-shrink-0">
-            <span className={`text-sm font-medium hover:underline ${isOverdue ? 'text-red-600' : ''}`}>
-              {reminder.title}
-            </span>
-          </Link>
-        ) : (
-          <span className={`text-sm font-medium flex-shrink-0 ${isOverdue ? 'text-red-600' : ''}`}>
-            {reminder.title}
-          </span>
-        )}
+        <span className={`text-sm font-medium flex-shrink-0 ${isOverdue ? 'text-red-600' : ''}`}>
+          {reminder.title}
+        </span>
         
         {/* Info badges and date - direkt neben dem Titel */}
         <div className="flex items-center gap-1.5 flex-1 min-w-0">
@@ -154,12 +153,15 @@ export function ReminderCard({
         </div>
         
         {/* Actions - rechts */}
-        <div className="flex items-center gap-1 flex-shrink-0">
+        <div className="flex items-center gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
           {reminder.status === 'completed' ? (
             <Button
               size="sm"
               variant="ghost"
-              onClick={() => onUncomplete(reminder.id)}
+              onClick={(e) => {
+                e.stopPropagation()
+                onUncomplete(reminder.id)
+              }}
               className="h-6 w-6 p-0"
               title="Wiedereröffnen"
             >
@@ -169,7 +171,10 @@ export function ReminderCard({
             <Button
               size="sm"
               variant="ghost"
-              onClick={() => onComplete(reminder.id)}
+              onClick={(e) => {
+                e.stopPropagation()
+                onComplete(reminder.id)
+              }}
               className="h-6 w-6 p-0"
               title="Erledigt"
             >
@@ -177,7 +182,7 @@ export function ReminderCard({
             </Button>
           )}
           {reminder.application_id && (
-            <Link href={`/dashboard/${reminder.application_id}`}>
+            <Link href={`/dashboard/${reminder.application_id}`} onClick={(e) => e.stopPropagation()}>
               <Button
                 size="sm"
                 variant="ghost"
@@ -191,7 +196,10 @@ export function ReminderCard({
           <Button
             size="sm"
             variant="ghost"
-            onClick={handleDelete}
+            onClick={(e) => {
+              e.stopPropagation()
+              handleDelete()
+            }}
             disabled={isDeleting}
             className="h-6 w-6 p-0 text-destructive hover:text-destructive"
             title="Löschen"
