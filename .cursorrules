@@ -1,0 +1,35 @@
+# Cursor Rules für Anschreiben App
+
+## Pipeline Management
+
+Wenn du mit Pipelines arbeitest, nutze die verfügbaren npm scripts:
+
+- `npm run pipeline` - Interaktives Pipeline-Menü
+- `npm run pipeline:test` - Tests ausführen
+- `npm run pipeline:trigger` - Deployment auslösen
+- `npm run pipeline:status` - Status prüfen
+- `npm run pipeline:service` - Service Status
+- `npm run pipeline:logs` - Logs ansehen
+- `npm run pipeline:rollback` - Rollback durchführen
+
+## Test-Konventionen
+
+- Alle Tests sind read-only (keine Daten erstellen/löschen)
+- Tests gegen Production-URL: `https://anschreiben-app-411832844870.europe-west1.run.app`
+- Test-Fixtures in `tests/fixtures/`
+- E2E Tests in `tests/e2e/`
+- Smoke Tests in `tests/smoke/`
+
+## Deployment
+
+- Pipeline blockiert Deployment bei fehlgeschlagenen Tests
+- Pre-Deployment: Linting, TypeScript-Check, E2E Tests
+- Post-Deployment: Smoke Tests
+- Rollback über `npm run pipeline:rollback`
+
+## Code-Qualität
+
+- Vor jedem Commit: `npm run lint`
+- Tests lokal ausführen: `npm run test:e2e`
+- TypeScript-Check: `npx tsc --noEmit`
+
