@@ -4,7 +4,6 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 import {
-  FileText,
   Briefcase,
   FileCheck,
   FolderOpen,
@@ -32,12 +31,6 @@ const mainNavItems = [
     label: "Bewerbungen",
     icon: Search,
     description: "Suche & Filter",
-  },
-  {
-    href: "/bewerbung-hinzufuegen",
-    label: "Bewerbung hinzufügen",
-    icon: FileText,
-    description: "Neues Anschreiben generieren",
   },
   {
     href: "/resume",
