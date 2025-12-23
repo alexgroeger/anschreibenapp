@@ -115,7 +115,8 @@ export function CoverLetterChat({
 
     // Try to extract paragraph suggestions from the response
     // Look for patterns like "Absatz X:" or numbered paragraphs
-    const paragraphPattern = /(?:absatz\s*(\d+)[:.]?\s*)?(.+?)(?=(?:absatz\s*\d+[:.]?|$))/gis
+    // Using [\s\S] instead of . with 's' flag for ES2017 compatibility
+    const paragraphPattern = /(?:absatz\s*(\d+)[:.]?\s*)?([\s\S]+?)(?=(?:absatz\s*\d+[:.]?|$))/gi
     const matches = Array.from(responseText.matchAll(paragraphPattern))
     
     if (matches.length === 0) {
