@@ -34,9 +34,11 @@ RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
 # Copy necessary files from builder
-COPY --from=builder /app/public ./public
+# Next.js standalone output includes public in .next/standalone/public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
+# Ensure public directory exists (standalone includes it, but we ensure it's accessible)
+RUN mkdir -p /app/public
 
 # Copy prompts directory - required for admin API to write prompt updates
 # The admin API writes updated prompts to files in this directory at runtime
