@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDatabase } from '@/lib/database/client';
+import { getDatabase, syncDatabaseAfterWrite } from '@/lib/database/client';
 import { extractPrompt } from '@/prompts/extract';
 import { matchPrompt } from '@/prompts/match';
 import { generatePrompt } from '@/prompts/generate';
@@ -69,6 +69,11 @@ export async function POST(request: NextRequest) {
     }
 
     const updatedCount = Object.values(results).filter(r => r.updated).length;
+
+    // Sync database to Cloud Storage after write (if any prompts were updated)
+    if (updatedCount > 0) {
+      await syncDatabaseAfterWrite();
+    }
 
     return NextResponse.json(
       {

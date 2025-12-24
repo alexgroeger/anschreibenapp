@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDatabase } from '@/lib/database/client';
+import { getDatabase, syncDatabaseAfterWrite } from '@/lib/database/client';
 
 // GET: Alle Einstellungen abrufen
 export async function GET(request: NextRequest) {
@@ -76,6 +76,9 @@ export async function POST(request: NextRequest) {
     });
 
     transaction();
+
+    // Sync database to Cloud Storage after write
+    await syncDatabaseAfterWrite();
 
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error) {

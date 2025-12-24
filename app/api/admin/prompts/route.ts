@@ -5,7 +5,7 @@ import { extractPrompt } from '@/prompts/extract';
 import { matchPrompt } from '@/prompts/match';
 import { generatePrompt } from '@/prompts/generate';
 import { toneAnalysisPrompt } from '@/prompts/tone-analysis';
-import { getDatabase } from '@/lib/database/client';
+import { getDatabase, syncDatabaseAfterWrite } from '@/lib/database/client';
 import { uploadFileToCloud, getBucket } from '@/lib/storage/sync';
 
 const promptsDir = join(process.cwd(), 'prompts');
@@ -144,6 +144,9 @@ export async function POST(request: NextRequest) {
       // Das ist nicht kritisch, da die Datenbank die Hauptquelle ist
       console.warn('Failed to save prompt to local file system:', fileError);
     }
+
+    // Sync database to Cloud Storage after write
+    await syncDatabaseAfterWrite();
 
     return NextResponse.json(
       { success: true, version: nextVersion },

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDatabase } from '@/lib/database/client';
+import { getDatabase, syncDatabaseAfterWrite } from '@/lib/database/client';
 
 export async function POST(request: NextRequest) {
   try {
@@ -43,6 +43,9 @@ export async function POST(request: NextRequest) {
         console.warn(`Failed to index document ${doc.id}:`, error.message);
       }
     }
+    
+    // Sync database to Cloud Storage after write
+    await syncDatabaseAfterWrite();
     
     return NextResponse.json(
       { message: 'FTS5 table recreated successfully', documentsIndexed: documents.length },

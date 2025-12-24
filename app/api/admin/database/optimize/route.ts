@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDatabase } from '@/lib/database/client';
+import { getDatabase, syncDatabaseAfterWrite } from '@/lib/database/client';
 
 // POST: Datenbank optimieren
 export async function POST() {
@@ -15,6 +15,9 @@ export async function POST() {
     // Get database size before and after (approximate)
     const stats = db.prepare('PRAGMA page_count').get() as any;
     const pageSize = db.prepare('PRAGMA page_size').get() as any;
+
+    // Sync database to Cloud Storage after optimization
+    await syncDatabaseAfterWrite();
 
     return NextResponse.json(
       {
@@ -32,3 +35,4 @@ export async function POST() {
     );
   }
 }
+
