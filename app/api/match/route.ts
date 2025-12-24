@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { matchPrompt } from '@/prompts/match';
+import { getPrompt } from '@/lib/prompts';
 import { getDatabase } from '@/lib/database/client';
 import { getSettings } from '@/lib/database/settings';
 import { generateTextWithFallback } from '@/lib/ai/model-helper';
@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
       ? oldCoverLettersData.map(letter => `---\n${letter.company || 'Unbekannt'} - ${letter.position || 'Unbekannt'}\n${letter.content}`).join('\n\n')
       : 'Keine historischen Anschreiben vorhanden.';
 
-    const prompt = matchPrompt
+    const prompt = getPrompt('match')
       .replace('{jobDescription}', jobDescription)
       .replace('{resume}', resume)
       .replace('{oldCoverLetters}', oldCoverLetters);

@@ -36,10 +36,13 @@ gcloud config set project $GCP_PROJECT_ID
 # API-Key aus .env.local holen
 export GOOGLE_GENERATIVE_AI_API_KEY="$(grep GOOGLE_GENERATIVE_AI_API_KEY .env.local | cut -d'=' -f2)"
 
+# API-Key aus Cloud Run holen (falls nicht in .env.local)
+API_KEY=$(gcloud run services describe anschreiben-app --region=europe-west1 --format='value(spec.template.spec.containers[0].env[0].value)')
+
 # Pipeline ausführen
 gcloud builds submit \
   --config=cloudbuild.yaml \
-  --substitutions=_GOOGLE_GENERATIVE_AI_API_KEY=$GOOGLE_GENERATIVE_AI_API_KEY
+  --substitutions=_GOOGLE_GENERATIVE_AI_API_KEY=$API_KEY
 ```
 
 ### Option 2: Direktes Deployment (ohne Tests)
@@ -77,12 +80,16 @@ gcloud run deploy anschreiben-app \
 ## Cloud Storage Setup (wenn noch nicht vorhanden)
 
 ```bash
-# Bucket erstellen
-gsutil mb -l europe-west1 gs://411832844870-anschreiben-data
+# Bucket erstellen (mit gcloud storage - moderner)
+gcloud storage buckets create gs://411832844870-anschreiben-data \
+  --location=europe-west1 \
+  --project=gen-lang-client-0764998759
 
-# Oder mit Script
-./scripts/setup-cloud-storage.sh
+# Oder mit automatischem Setup-Script (empfohlen)
+./scripts/fix-cloud-storage.sh
 ```
+
+**Hinweis**: Der Bucket-Name verwendet die Projektnummer (411832844870), nicht die Projekt-ID!
 
 ## Nach dem Deployment
 
@@ -109,7 +116,13 @@ gcloud run services logs read anschreiben-app --region europe-west1
 
 ## Aktuelle Production-URL
 
-**URL**: https://anschreiben-app-411832844870.europe-west1.run.app
+**URL**: https://anschreiben-app-411832844870.europe-west1.run.app  
+**Alternative URL**: https://anschreiben-app-7dglnuwm5q-ew.a.run.app
+
+**Status**: ✅ Deployment erfolgreich abgeschlossen (24.12.2025 00:50 Uhr)
+- Cloud Storage konfiguriert: ✅
+- GCS_BUCKET_NAME gesetzt: ✅
+- Datenbank-Synchronisation aktiv: ✅
 
 ## Nächste Schritte
 

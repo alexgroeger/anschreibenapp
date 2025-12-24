@@ -2,17 +2,20 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "Pipeline: Tests ausführen",
+      "label": "Pipeline: Interaktives Menü",
       "type": "shell",
-      "command": "npm run pipeline:test",
+      "command": "npm run pipeline",
       "group": {
         "kind": "test",
         "isDefault": false
       },
       "presentation": {
+        "echo": true,
         "reveal": "always",
-        "panel": "dedicated",
-        "focus": false
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false
       },
       "problemMatcher": []
     },
@@ -25,9 +28,30 @@
         "isDefault": false
       },
       "presentation": {
+        "echo": true,
         "reveal": "always",
-        "panel": "dedicated",
-        "focus": false
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Pipeline: Tests ausführen",
+      "type": "shell",
+      "command": "npm run pipeline:test",
+      "group": {
+        "kind": "test",
+        "isDefault": false
+      },
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false
       },
       "problemMatcher": []
     },
@@ -35,10 +59,14 @@
       "label": "Pipeline: Status prüfen",
       "type": "shell",
       "command": "npm run pipeline:status",
-      "group": "test",
+      "group": "none",
       "presentation": {
+        "echo": true,
         "reveal": "always",
-        "panel": "dedicated"
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false
       },
       "problemMatcher": []
     },
@@ -46,10 +74,14 @@
       "label": "Pipeline: Service Status",
       "type": "shell",
       "command": "npm run pipeline:service",
-      "group": "test",
+      "group": "none",
       "presentation": {
+        "echo": true,
         "reveal": "always",
-        "panel": "dedicated"
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false
       },
       "problemMatcher": []
     },
@@ -57,22 +89,29 @@
       "label": "Pipeline: Logs ansehen",
       "type": "shell",
       "command": "npm run pipeline:logs",
-      "group": "test",
+      "group": "none",
       "presentation": {
+        "echo": true,
         "reveal": "always",
-        "panel": "dedicated"
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false
       },
       "problemMatcher": []
     },
     {
-      "label": "Pipeline: Rollback",
+      "label": "Pipeline: Rollback durchführen",
       "type": "shell",
       "command": "npm run pipeline:rollback",
-      "group": "build",
+      "group": "none",
       "presentation": {
+        "echo": true,
         "reveal": "always",
-        "panel": "dedicated",
-        "focus": false
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false
       },
       "problemMatcher": []
     },
@@ -85,8 +124,12 @@
         "isDefault": true
       },
       "presentation": {
+        "echo": true,
         "reveal": "always",
-        "panel": "dedicated"
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false
       },
       "problemMatcher": []
     },
@@ -96,8 +139,12 @@
       "command": "npm run test:e2e:ui",
       "group": "test",
       "presentation": {
+        "echo": true,
         "reveal": "always",
-        "panel": "dedicated"
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false
       },
       "problemMatcher": []
     },
@@ -107,11 +154,37 @@
       "command": "npm run test:smoke",
       "group": "test",
       "presentation": {
+        "echo": true,
         "reveal": "always",
-        "panel": "dedicated"
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false
       },
       "problemMatcher": []
+    },
+    {
+      "label": "Pipeline: Direktes Deployment (gcloud builds submit)",
+      "type": "shell",
+      "command": "gcloud builds submit --config=cloudbuild.yaml --substitutions=_GOOGLE_GENERATIVE_AI_API_KEY=${env:GOOGLE_GENERATIVE_AI_API_KEY}",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false
+      },
+      "problemMatcher": [],
+      "options": {
+        "env": {
+          "GOOGLE_GENERATIVE_AI_API_KEY": "${env:GOOGLE_GENERATIVE_AI_API_KEY}"
+        }
+      }
     }
   ]
 }
-

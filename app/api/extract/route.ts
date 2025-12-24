@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { extractPrompt } from '@/prompts/extract';
+import { getPrompt } from '@/lib/prompts';
 import { getSettings } from '@/lib/database/settings';
 import { generateTextWithFallback } from '@/lib/ai/model-helper';
 import { parseFile } from '@/lib/file-parser';
@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
     const preferredModel = settings.ai_model;
     const temperature = parseFloat(settings.temperature_extract || '0.3');
 
-    const prompt = extractPrompt.replace('{jobDescription}', jobDescription);
+    const prompt = getPrompt('extract').replace('{jobDescription}', jobDescription);
 
     const { text } = await generateTextWithFallback(
       prompt,

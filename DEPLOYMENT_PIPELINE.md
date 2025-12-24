@@ -6,33 +6,42 @@ Diese Dokumentation beschreibt die manuell auslösbare Deployment-Pipeline mit a
 
 Die Pipeline führt automatisch End-to-End-Tests vor dem Deployment aus und blockiert das Deployment, wenn Tests fehlschlagen. Die Pipeline besteht aus folgenden Phasen:
 
-1. **Pre-Deployment Checks**: Code-Qualität (Linting, TypeScript)
-2. **E2E Tests**: Automatische Tests gegen die aktuelle Production-URL
-3. **Build**: Docker Image erstellen (nur bei erfolgreichen Tests)
+1. **Setup & Prerequisites**: APIs aktivieren, Cloud Storage Bucket prüfen/erstellen
+2. **Code Quality & Tests**: Dependencies installieren, TypeScript-Check, E2E Tests gegen Production
+3. **Build & Push**: Docker Image erstellen und zu Container Registry pushen
 4. **Pre-Deploy Backup**: Datenbank-Backup zu Cloud Storage erstellen
 5. **Deploy**: Deployment zu Cloud Run (mit GCS_BUCKET_NAME Environment-Variable)
-6. **Post-Deploy Verification**: Smoke Tests nach dem Deployment
+6. **Post-Deploy Verification**: Service Status prüfen, Smoke Tests ausführen, finale Status-Ausgabe
 7. **Cloud Storage Sync**: Automatische Synchronisation beim Container-Start
 
 ## Pipeline-Flow
 
 ```
-Pre-Deployment Checks
+PHASE 1: Setup & Prerequisites
+  ├─ APIs aktivieren (Cloud Build, Cloud Run, Container Registry, Storage)
+  └─ Cloud Storage Bucket prüfen/erstellen
   ↓
-E2E Tests (gegen aktuelle Production)
+PHASE 2: Code Quality & Tests
+  ├─ Dependencies installieren (npm ci)
+  ├─ TypeScript Type-Check
+  └─ E2E Tests (gegen aktuelle Production)
   ↓ (bei Fehler: Pipeline stoppt)
-Build Docker Image
+PHASE 3: Build & Push
+  ├─ Docker Image bauen
+  └─ Image zu Container Registry pushen
   ↓
-Push Image to Registry
+PHASE 4: Pre-Deployment Backup
+  └─ Datenbank-Backup zu Cloud Storage
   ↓
-Database Backup (zu Cloud Storage)
+PHASE 5: Deployment
+  └─ Deploy zu Cloud Run (mit GCS_BUCKET_NAME)
   ↓
-Deploy to Cloud Run (mit GCS_BUCKET_NAME)
-  ↓
-Post-Deploy Smoke Tests
+PHASE 6: Post-Deployment Verification
+  ├─ Service Status prüfen
+  ├─ Health Check durchführen
+  ├─ Smoke Tests ausführen
+  └─ Finale Status-Ausgabe
   ↓ (bei Fehler: Warnung, aber Deployment bleibt)
-Cloud Storage Sync Verification
-  ↓
 Erfolgreich
 ```
 
@@ -57,12 +66,27 @@ Erfolgreich
 
 ```bash
 # Projekt setzen
-gcloud config set project gen-lang-client-0764998759
+export GCP_PROJECT_ID="gen-lang-client-0764998759"
+gcloud config set project $GCP_PROJECT_ID
 
-# Pipeline manuell auslösen
+# API-Key aus .env.local holen (falls vorhanden)
+export GOOGLE_GENERATIVE_AI_API_KEY="$(grep GOOGLE_GENERATIVE_AI_API_KEY .env.local | cut -d'=' -f2)"
+
+# Oder API-Key aus Cloud Run holen (falls nicht in .env.local)
+if [ -z "$GOOGLE_GENERATIVE_AI_API_KEY" ]; then
+  API_KEY=$(gcloud run services describe anschreiben-app --region=europe-west1 --format='value(spec.template.spec.containers[0].env[0].value)')
+  export GOOGLE_GENERATIVE_AI_API_KEY="$API_KEY"
+fi
+
+# Pipeline ausführen
 gcloud builds submit \
   --config=cloudbuild.yaml \
-  --substitutions=_GOOGLE_GENERATIVE_AI_API_KEY=your-api-key
+  --substitutions=_GOOGLE_GENERATIVE_AI_API_KEY=$GOOGLE_GENERATIVE_AI_API_KEY
+```
+
+**Alternative**: Über das Pipeline-Script (empfohlen):
+```bash
+npm run pipeline:trigger
 ```
 
 **Hinweis**: Die Pipeline setzt automatisch `GCS_BUCKET_NAME=411832844870-anschreiben-data` als Environment-Variable (verwendet Projektnummer, nicht Projekt-ID). Stellen Sie sicher, dass der Cloud Storage Bucket existiert (siehe Cloud Storage Setup).

@@ -1,75 +1,150 @@
 steps:
-  # Pre-Deployment: Code Quality Checks
+  # ============================================
+  # PHASE 1: Setup & Prerequisites
+  # ============================================
+  
+  # Schritt 1: APIs aktivieren (falls noch nicht aktiviert)
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        echo "Aktiviere erforderliche APIs..."
+        gcloud services enable cloudbuild.googleapis.com --project=$PROJECT_ID || true
+        gcloud services enable run.googleapis.com --project=$PROJECT_ID || true
+        gcloud services enable containerregistry.googleapis.com --project=$PROJECT_ID || true
+        gcloud services enable storage.googleapis.com --project=$PROJECT_ID || true
+        echo "APIs aktiviert"
+    id: 'enable-apis'
+  
+  # Schritt 2: Cloud Storage Bucket prüfen/erstellen
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        BUCKET_NAME="411832844870-anschreiben-data"
+        REGION="europe-west1"
+        
+        echo "Prüfe Cloud Storage Bucket: gs://$BUCKET_NAME"
+        
+        # Prüfe ob Bucket existiert
+        if gcloud storage buckets describe "gs://$BUCKET_NAME" --project=$PROJECT_ID &> /dev/null; then
+          echo "✓ Bucket existiert bereits: gs://$BUCKET_NAME"
+        else
+          echo "Bucket existiert nicht. Erstelle Bucket..."
+          gcloud storage buckets create "gs://$BUCKET_NAME" \
+            --location="$REGION" \
+            --project=$PROJECT_ID
+          
+          if [ $? -eq 0 ]; then
+            echo "✓ Bucket erfolgreich erstellt: gs://$BUCKET_NAME"
+          else
+            echo "⚠ Fehler beim Erstellen des Buckets (kann ignoriert werden, falls bereits vorhanden)"
+          fi
+        fi
+    id: 'setup-cloud-storage'
+    waitFor: ['enable-apis']
+  
+  # ============================================
+  # PHASE 2: Code Quality & Tests
+  # ============================================
+  
+  # Schritt 3: Dependencies installieren
   - name: 'node:18'
     entrypoint: 'npm'
     args: ['ci']
     id: 'install-dependencies'
+    waitFor: ['setup-cloud-storage']
   
-  # Lint-Check temporär deaktiviert wegen ESLint-Konfigurationskonflikt
-  # - name: 'node:18'
-  #   entrypoint: 'npm'
-  #   args: ['run', 'lint']
-  #   id: 'lint-check'
-  
+  # Schritt 4: TypeScript Type-Check
   - name: 'node:18'
     entrypoint: 'npx'
     args: ['tsc', '--noEmit']
     id: 'type-check'
+    waitFor: ['install-dependencies']
   
-  # Pre-Deployment: Run E2E Tests against current production
-  # Tests werden ausgeführt, blockieren aber nicht das Deployment
+  # Schritt 5: Lint-Check (optional, kann deaktiviert werden)
+  # - name: 'node:18'
+  #   entrypoint: 'npm'
+  #   args: ['run', 'lint']
+  #   id: 'lint-check'
+  #   waitFor: ['type-check']
+  
+  # Schritt 6: Pre-Deployment E2E Tests (blockieren Deployment bei Fehlern)
   - name: 'node:18'
     entrypoint: 'bash'
     args:
       - '-c'
       - |
+        echo "Installiere Playwright..."
         npx playwright install --with-deps chromium
-        npm run test:e2e || echo "E2E tests failed, but continuing deployment..."
+        
+        echo "Führe E2E Tests gegen Production aus..."
+        npm run test:e2e
     env:
       - 'TEST_BASE_URL=https://anschreiben-app-411832844870.europe-west1.run.app'
       - 'CI=true'
-    id: 'e2e-tests'
+    id: 'pre-deploy-e2e-tests'
     waitFor: ['type-check']
   
-  # Build the container image
+  # ============================================
+  # PHASE 3: Build & Push
+  # ============================================
+  
+  # Schritt 7: Docker Image bauen
   - name: 'gcr.io/cloud-builders/docker'
     entrypoint: 'bash'
     args:
       - '-c'
       - |
         TAG_VERSION=$${SHORT_SHA:-$(date +%Y%m%d-%H%M%S)}
+        echo "Baue Docker Image mit Tag: $TAG_VERSION"
         docker build \
           -t gcr.io/$PROJECT_ID/anschreiben-app:$$TAG_VERSION \
           -t gcr.io/$PROJECT_ID/anschreiben-app:latest \
           .
+        echo "✓ Image erfolgreich gebaut"
     id: 'build-image'
-    waitFor: ['type-check']
+    waitFor: ['pre-deploy-e2e-tests']
   
-  # Push the container image to Container Registry
-  # Push both tags in one step to ensure consistency
+  # Schritt 8: Docker Image zu Container Registry pushen
   - name: 'gcr.io/cloud-builders/docker'
     entrypoint: 'bash'
     args:
       - '-c'
       - |
         TAG_VERSION=$${SHORT_SHA:-$(date +%Y%m%d-%H%M%S)}
-        docker push gcr.io/$PROJECT_ID/anschreiben-app:$$TAG_VERSION || echo "Failed to push versioned tag, continuing..."
+        echo "Pushe Image zu Container Registry..."
+        docker push gcr.io/$PROJECT_ID/anschreiben-app:$$TAG_VERSION || echo "⚠ Fehler beim Pushen der Version, versuche latest..."
         docker push gcr.io/$PROJECT_ID/anschreiben-app:latest
+        echo "✓ Image erfolgreich gepusht"
     id: 'push-image'
     waitFor: ['build-image']
   
-  # Pre-Deployment: Database Backup
+  # ============================================
+  # PHASE 4: Pre-Deployment Backup
+  # ============================================
+  
+  # Schritt 9: Datenbank-Backup vor Deployment
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     entrypoint: 'bash'
     args:
       - '-c'
       - |
         TIMESTAMP=$(date +%Y%m%d-%H%M%S)
-        curl -X POST "https://anschreiben-app-411832844870.europe-west1.run.app/api/admin/database/backup" || echo "Backup endpoint not accessible, continuing..."
+        echo "Erstelle Datenbank-Backup vor Deployment..."
+        curl -X POST "https://anschreiben-app-411832844870.europe-west1.run.app/api/admin/database/backup" \
+          --max-time 30 \
+          || echo "⚠ Backup-Endpoint nicht erreichbar (kann ignoriert werden)"
     id: 'pre-deploy-backup'
     waitFor: ['push-image']
   
-  # Deploy container image to Cloud Run
+  # ============================================
+  # PHASE 5: Deployment
+  # ============================================
+  
+  # Schritt 10: Deploy zu Cloud Run
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     entrypoint: gcloud
     args:
@@ -95,23 +170,83 @@ steps:
       - '10'
       - '--set-env-vars'
       - 'GOOGLE_GENERATIVE_AI_API_KEY=${_GOOGLE_GENERATIVE_AI_API_KEY},GCS_BUCKET_NAME=411832844870-anschreiben-data'
+      - '--project'
+      - '$PROJECT_ID'
     id: 'deploy'
     waitFor: ['pre-deploy-backup']
   
-  # Post-Deployment: Smoke Tests
+  # ============================================
+  # PHASE 6: Post-Deployment Verification
+  # ============================================
+  
+  # Schritt 11: Service Status prüfen
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        echo "Prüfe Service Status..."
+        SERVICE_URL=$(gcloud run services describe anschreiben-app \
+          --region=europe-west1 \
+          --format='value(status.url)' \
+          --project=$PROJECT_ID)
+        
+        echo "Service URL: $SERVICE_URL"
+        echo "Warte 10 Sekunden auf Service-Bereitschaft..."
+        sleep 10
+        
+        # Health Check
+        echo "Führe Health Check durch..."
+        curl -f "$SERVICE_URL/api/admin/database/sync" --max-time 30 || echo "⚠ Health Check fehlgeschlagen"
+    id: 'post-deploy-status-check'
+    waitFor: ['deploy']
+  
+  # Schritt 12: Post-Deployment Smoke Tests
   - name: 'node:18'
     entrypoint: 'bash'
     args:
       - '-c'
       - |
+        echo "Installiere Dependencies für Smoke Tests..."
         npm ci
+        
+        echo "Installiere Playwright..."
         npx playwright install --with-deps chromium
-        npm run test:smoke || echo "Smoke tests failed, but deployment completed"
+        
+        echo "Führe Smoke Tests aus..."
+        npm run test:smoke || echo "⚠ Smoke Tests fehlgeschlagen, aber Deployment abgeschlossen"
     env:
       - 'TEST_BASE_URL=https://anschreiben-app-411832844870.europe-west1.run.app'
       - 'CI=true'
     id: 'post-deploy-smoke-tests'
-    waitFor: ['deploy']
+    waitFor: ['post-deploy-status-check']
+  
+  # Schritt 13: Finale Status-Ausgabe
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        echo ""
+        echo "=========================================="
+        echo "✓ Deployment erfolgreich abgeschlossen!"
+        echo "=========================================="
+        echo ""
+        SERVICE_URL=$(gcloud run services describe anschreiben-app \
+          --region=europe-west1 \
+          --format='value(status.url)' \
+          --project=$PROJECT_ID)
+        
+        echo "Service URL: $SERVICE_URL"
+        echo "Production URL: https://anschreiben-app-411832844870.europe-west1.run.app"
+        echo ""
+        echo "Nächste Schritte:"
+        echo "1. Service testen: curl $SERVICE_URL/api/admin/database/sync"
+        echo "2. Admin-Panel öffnen: $SERVICE_URL/admin/database"
+        echo "3. Logs prüfen: gcloud run services logs read anschreiben-app --region=europe-west1"
+        echo ""
+    id: 'final-status'
+    waitFor: ['post-deploy-smoke-tests']
 
 images:
   - 'gcr.io/$PROJECT_ID/anschreiben-app:latest'

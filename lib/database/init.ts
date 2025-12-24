@@ -72,6 +72,13 @@ export function initDatabase(): Database.Database {
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
+    CREATE TABLE IF NOT EXISTS prompts (
+      prompt_name TEXT PRIMARY KEY,
+      content TEXT NOT NULL,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_by TEXT
+    );
+
     CREATE TABLE IF NOT EXISTS prompt_versions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       prompt_name TEXT NOT NULL,
@@ -234,20 +241,20 @@ export function initDatabase(): Database.Database {
   
   // Initialize default settings
   const defaultSettings = [
-    { key: 'google_api_key', value: '', category: 'api', description: 'Google Gemini API-Key (leer lassen, um .env.local zu verwenden)' },
-    { key: 'ai_model', value: 'gemini-pro', category: 'ai', description: 'KI-Modell für alle Operationen' },
+    { key: 'ai_model', value: 'gemini-1.5-pro', category: 'ai', description: 'KI-Modell für alle Operationen' },
     { key: 'temperature_extract', value: '0.3', category: 'ai', description: 'Temperature für Extraktion' },
-    { key: 'temperature_match', value: '0.5', category: 'ai', description: 'Temperature für Matching' },
     { key: 'temperature_generate', value: '0.7', category: 'ai', description: 'Temperature für Generierung' },
+    { key: 'temperature_match', value: '0.5', category: 'ai', description: 'Temperature für Matching' },
     { key: 'temperature_tone', value: '0.3', category: 'ai', description: 'Temperature für Tonalitäts-Analyse' },
-    { key: 'default_tone', value: 'professionell', category: 'generation', description: 'Standard-Tonalität' },
-    { key: 'default_focus', value: 'skills', category: 'generation', description: 'Standard-Fokus' },
-    { key: 'default_text_length', value: 'mittel', category: 'generation', description: 'Standard-Textlänge' },
-    { key: 'default_formality', value: 'formal', category: 'generation', description: 'Standard-Formalität' },
-    { key: 'default_emphasis', value: 'kombiniert', category: 'generation', description: 'Standard-Betonung' },
-    { key: 'cover_letter_min_words', value: '300', category: 'generation', description: 'Minimale Anschreiben-Länge (Wörter)' },
+    { key: 'google_api_key', value: 'AIzaSyCMnSz6BrDDPU0qTNoLXVooVDo335A6P5o', category: 'api', description: 'Google Gemini API-Key (leer lassen, um .env.local zu verwenden)' },
     { key: 'cover_letter_max_words', value: '400', category: 'generation', description: 'Maximale Anschreiben-Länge (Wörter)' },
-    { key: 'excluded_formulations', value: '', category: 'generation', description: 'Ausgeschlossene Formulierungen (eine pro Zeile)' },
+    { key: 'cover_letter_min_words', value: '300', category: 'generation', description: 'Minimale Anschreiben-Länge (Wörter)' },
+    { key: 'default_emphasis', value: 'kombiniert', category: 'generation', description: 'Standard-Betonung' },
+    { key: 'default_focus', value: 'skills', category: 'generation', description: 'Standard-Fokus' },
+    { key: 'default_formality', value: 'formal', category: 'generation', description: 'Standard-Formalität' },
+    { key: 'default_text_length', value: 'mittel', category: 'generation', description: 'Standard-Textlänge' },
+    { key: 'default_tone', value: 'professionell', category: 'generation', description: 'Standard-Tonalität' },
+    { key: 'excluded_formulations', value: 'mit großem Interesse habe ich Ihre Stellenausschreibung für die Position XYZ gelesen', category: 'generation', description: 'Ausgeschlossene Formulierungen (eine pro Zeile)' },
     { key: 'favorite_formulations', value: '', category: 'generation', description: 'Favorisierte Formulierungen (eine pro Zeile)' },
   ];
 

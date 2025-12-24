@@ -1,16 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { extractPrompt } from '@/prompts/extract';
-import { matchPrompt } from '@/prompts/match';
-import { generatePrompt } from '@/prompts/generate';
-import { toneAnalysisPrompt } from '@/prompts/tone-analysis';
+import { getPrompt } from '@/lib/prompts';
 import { getDatabase } from '@/lib/database/client';
-
-const prompts: Record<string, string> = {
-  extract: extractPrompt,
-  match: matchPrompt,
-  generate: generatePrompt,
-  'tone-analysis': toneAnalysisPrompt,
-};
 
 // GET: Einzelnen Prompt abrufen
 export async function GET(
@@ -20,10 +10,23 @@ export async function GET(
   try {
     const { name: promptName } = await params;
 
-    if (!prompts[promptName]) {
+    // Validate prompt name
+    const validPrompts = ['extract', 'match', 'generate', 'tone-analysis'];
+    if (!validPrompts.includes(promptName)) {
       return NextResponse.json(
         { error: `Unknown prompt: ${promptName}` },
         { status: 404 }
+      );
+    }
+
+    // Get prompt content (from database or fallback)
+    let promptContent: string;
+    try {
+      promptContent = getPrompt(promptName);
+    } catch (error) {
+      return NextResponse.json(
+        { error: `Failed to load prompt: ${promptName}` },
+        { status: 500 }
       );
     }
 
@@ -41,7 +44,7 @@ export async function GET(
     return NextResponse.json(
       {
         name: promptName,
-        content: prompts[promptName],
+        content: promptContent,
         versions: versions,
       },
       { status: 200 }
