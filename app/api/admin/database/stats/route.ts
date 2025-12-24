@@ -6,29 +6,37 @@ export async function GET() {
   try {
     const db = getDatabase();
 
+    // Get counts - ensure we extract the count value correctly
+    const resumeCountResult = db.prepare('SELECT COUNT(*) as count FROM resume').get() as { count: number } | undefined;
+    const oldCoverLettersCountResult = db.prepare('SELECT COUNT(*) as count FROM old_cover_letters').get() as { count: number } | undefined;
+    const applicationsCountResult = db.prepare('SELECT COUNT(*) as count FROM applications').get() as { count: number } | undefined;
+    const contactPersonsCountResult = db.prepare('SELECT COUNT(*) as count FROM contact_persons').get() as { count: number } | undefined;
+    const settingsCountResult = db.prepare('SELECT COUNT(*) as count FROM settings').get() as { count: number } | undefined;
+    const promptVersionsCountResult = db.prepare('SELECT COUNT(*) as count FROM prompt_versions').get() as { count: number } | undefined;
+
     const stats = {
       resume: {
-        count: db.prepare('SELECT COUNT(*) as count FROM resume').get() as any,
+        count: { count: resumeCountResult?.count ?? 0 },
         totalSize: 0,
       },
       old_cover_letters: {
-        count: db.prepare('SELECT COUNT(*) as count FROM old_cover_letters').get() as any,
+        count: { count: oldCoverLettersCountResult?.count ?? 0 },
         totalSize: 0,
       },
       applications: {
-        count: db.prepare('SELECT COUNT(*) as count FROM applications').get() as any,
+        count: { count: applicationsCountResult?.count ?? 0 },
         byStatus: db
           .prepare('SELECT status, COUNT(*) as count FROM applications GROUP BY status')
           .all(),
       },
       contact_persons: {
-        count: db.prepare('SELECT COUNT(*) as count FROM contact_persons').get() as any,
+        count: { count: contactPersonsCountResult?.count ?? 0 },
       },
       settings: {
-        count: db.prepare('SELECT COUNT(*) as count FROM settings').get() as any,
+        count: { count: settingsCountResult?.count ?? 0 },
       },
       prompt_versions: {
-        count: db.prepare('SELECT COUNT(*) as count FROM prompt_versions').get() as any,
+        count: { count: promptVersionsCountResult?.count ?? 0 },
       },
       database: {
         path: db.name,
@@ -60,3 +68,4 @@ export async function GET() {
     );
   }
 }
+

@@ -127,10 +127,14 @@ export async function POST(request: NextRequest) {
     } else if (action === 'download') {
       const success = await downloadDatabaseFromCloud();
       if (success) {
+        // CRITICAL: Reset database instance cache so it reloads the downloaded database
+        const { closeDatabase } = await import('@/lib/database/client');
+        closeDatabase();
+        
         return NextResponse.json(
           { 
             success: true,
-            message: 'Database successfully downloaded from Cloud Storage',
+            message: 'Database successfully downloaded from Cloud Storage and cache cleared',
             action: 'download'
           },
           { status: 200 }

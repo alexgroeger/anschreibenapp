@@ -11,6 +11,15 @@ if (!fs.existsSync(dataDir)) {
 }
 
 export function initDatabase(): Database.Database {
+  // CRITICAL: Check if database file exists before creating new connection
+  // This ensures we don't overwrite a database that was just downloaded from Cloud Storage
+  const dbExists = fs.existsSync(dbPath);
+  if (dbExists) {
+    console.log(`[DB Init] Using existing database at ${dbPath} (${fs.statSync(dbPath).size} bytes)`);
+  } else {
+    console.log(`[DB Init] Creating new database at ${dbPath}`);
+  }
+  
   const db = new Database(dbPath);
   
   // Enable foreign keys

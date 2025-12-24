@@ -1,206 +1,241 @@
-# Deployment-Checkliste: Cloud Storage Integration
+# ✅ Deployment-Checkliste
 
-Diese Checkliste führt Sie Schritt für Schritt durch das Deployment mit persistenter Cloud Storage Integration.
+## Übersicht: Was wird beim Deployment gesichert?
 
-## ✅ Vorbereitung
+### ✅ Automatisch gesichert (in Datenbank)
 
-### 1. Google Cloud Projekt Setup
-- [ ] Google Cloud Account erstellt
-- [ ] Billing aktiviert
-- [ ] Projekt-ID notiert: `_________________`
-- [ ] Google Cloud SDK (`gcloud`) installiert
-- [ ] Authentifizierung konfiguriert: `gcloud auth login`
+Die SQLite-Datenbank enthält **alle wichtigen Daten** und wird automatisch zu Cloud Storage synchronisiert:
 
-### 2. APIs aktivieren
+1. **Admin-Konfigurationen** (`settings` Tabelle):
+   - ✅ API-Key Konfiguration
+   - ✅ KI-Modell-Einstellungen (Temperature, Model, etc.)
+   - ✅ Generierungs-Einstellungen (Standardwerte, Formulierungen)
+   - ✅ Alle System-Einstellungen
+
+2. **Prompts** (`prompts` Tabelle):
+   - ✅ Alle angepassten Prompts
+   - ✅ Prompt-Versionen (`prompt_versions` Tabelle)
+
+3. **Resume/Lebenslauf** (`resume` Tabelle):
+   - ✅ Hochgeladener Lebenslauf
+   - ✅ Resume-Versionen (`resume_versions` Tabelle)
+
+4. **Bewerbungen** (`applications` Tabelle):
+   - ✅ Alle Bewerbungen mit Status
+   - ✅ Job-Beschreibungen
+   - ✅ Extraktionsdaten
+   - ✅ Generierte Anschreiben
+   - ✅ Match-Ergebnisse
+
+5. **Kontaktpersonen** (`contact_persons` Tabelle):
+   - ✅ Alle Kontaktpersonen
+
+6. **Alte Anschreiben** (`old_cover_letters` Tabelle):
+   - ✅ Alle hochgeladenen alten Anschreiben
+
+7. **Reminders** (`reminders` Tabelle):
+   - ✅ Alle Erinnerungen und Termine
+
+8. **Dokumente-Metadaten** (`application_documents` Tabelle):
+   - ✅ Metadaten zu hochgeladenen Dokumenten
+
+### ✅ Automatisch gesichert (in Cloud Storage)
+
+1. **Job-Dokumente** (`job-documents/` in Cloud Storage):
+   - ✅ Hochgeladene PDFs/Dokumente von Stellenausschreibungen
+   - ✅ Werden automatisch zu Cloud Storage hochgeladen
+
+2. **Datenbank-Backup** (`anschreiben_backup.db` in Cloud Storage):
+   - ✅ Automatisches Backup bei jedem Upload
+
+### ⚠️ Wichtige Hinweise
+
+#### Environment-Variablen
+
+Diese werden beim Deployment gesetzt und müssen korrekt sein:
+
 ```bash
-export GCP_PROJECT_ID="ihr-projekt-id"
-gcloud config set project $GCP_PROJECT_ID
-
-# APIs aktivieren
-gcloud services enable cloudbuild.googleapis.com
-gcloud services enable run.googleapis.com
-gcloud services enable containerregistry.googleapis.com
-gcloud services enable storage.googleapis.com
+GOOGLE_GENERATIVE_AI_API_KEY  # API-Key für Gemini
+GCS_BUCKET_NAME              # Cloud Storage Bucket (411832844870-anschreiben-data)
 ```
 
-- [ ] Alle APIs aktiviert
-
-### 3. Cloud Storage Bucket erstellen
+**Prüfung nach Deployment:**
 ```bash
-# Bucket erstellen
-gsutil mb -l europe-west1 gs://$GCP_PROJECT_ID-anschreiben-data
-
-# Optional: Versionierung aktivieren
-gsutil versioning set on gs://$GCP_PROJECT_ID-anschreiben-data
-
-# Bucket-Name notieren: `_________________`
-```
-
-- [ ] Bucket erstellt
-- [ ] Bucket-Name notiert: `_________________`
-
-### 4. Service Account Berechtigungen (für Cloud Run)
-```bash
-# Service Account für Cloud Run benötigt Storage-Berechtigungen
-# Diese werden normalerweise automatisch vergeben, aber prüfen Sie:
-gcloud projects get-iam-policy $GCP_PROJECT_ID \
-  --flatten="bindings[].members" \
-  --filter="bindings.members:*compute@developer.gserviceaccount.com"
-```
-
-- [ ] Berechtigungen geprüft (oder automatisch vergeben)
-
-## 🚀 Deployment
-
-### 5. Docker Image bauen und pushen
-```bash
-# Build und Push
-gcloud builds submit --tag gcr.io/$GCP_PROJECT_ID/anschreiben-app
-
-# Oder mit dem bereitgestellten Script
-./cloud-run-deploy.sh
-```
-
-- [ ] Image erfolgreich gebaut
-- [ ] Image zu Container Registry gepusht
-
-### 6. Cloud Run Service deployen
-```bash
-gcloud run deploy anschreiben-app \
-  --image gcr.io/$GCP_PROJECT_ID/anschreiben-app \
-  --region europe-west1 \
-  --platform managed \
-  --allow-unauthenticated \
-  --port 8080 \
-  --memory 2Gi \
-  --cpu 2 \
-  --timeout 300 \
-  --max-instances 10 \
-  --set-env-vars GOOGLE_GENERATIVE_AI_API_KEY="ihr-api-key" \
-  --set-env-vars GCS_BUCKET_NAME="$GCP_PROJECT_ID-anschreiben-data"
-```
-
-**Wichtige Environment-Variablen:**
-- [ ] `GOOGLE_GENERATIVE_AI_API_KEY` gesetzt
-- [ ] `GCS_BUCKET_NAME` gesetzt (Bucket-Name von Schritt 3)
-
-### 7. Service URL notieren
-```bash
-# Service URL abrufen
 gcloud run services describe anschreiben-app \
-  --region europe-west1 \
-  --format="value(status.url)"
+  --region=europe-west1 \
+  --format="value(spec.template.spec.containers[0].env)" \
+  --project=gen-lang-client-0764998759
 ```
 
-- [ ] Service URL notiert: `_________________`
+#### Prompt-Dateien
 
-## 🧪 Testing
+Die Prompt-Dateien im `/prompts` Verzeichnis werden im Dockerfile kopiert:
+- ✅ `prompts/extract.ts`
+- ✅ `prompts/generate.ts`
+- ✅ `prompts/match.ts`
+- ✅ `prompts/tone-analysis.ts`
 
-### 8. Funktionalität testen
-- [ ] App öffnen: `https://ihre-service-url`
-- [ ] Admin-Panel öffnen: `/admin/database`
-- [ ] Cloud Storage Status prüfen (sollte "Konfiguriert" anzeigen)
-- [ ] Testdaten erstellen (z.B. neue Bewerbung)
-- [ ] Synchronisation prüfen (sollte automatisch hochgeladen werden)
+**Wichtig**: Änderungen an diesen Dateien erfordern ein neues Deployment.
 
-### 9. Cloud Storage prüfen
+#### Datenbank-Synchronisation
+
+Die Datenbank wird automatisch synchronisiert:
+- ✅ **Beim Start**: Lädt Datenbank aus Cloud Storage (mit Retry-Mechanismus)
+- ✅ **Nach Schreiboperationen**: Lädt automatisch zu Cloud Storage hoch
+- ✅ **Manuell**: Über `/admin/database` oder `/api/admin/database/sync`
+
+## Pre-Deployment Checkliste
+
+### Vor dem Deployment
+
+- [ ] **Code-Änderungen committed**
+- [ ] **Tests lokal durchgeführt** (optional, da Quick-Deploy ohne Tests)
+- [ ] **Environment-Variablen geprüft**:
+  - [ ] `GOOGLE_GENERATIVE_AI_API_KEY` ist gesetzt
+  - [ ] `GCS_BUCKET_NAME` ist korrekt (411832844870-anschreiben-data)
+- [ ] **Cloud Storage Bucket existiert**:
+  ```bash
+  gcloud storage buckets describe gs://411832844870-anschreiben-data \
+    --project=gen-lang-client-0764998759
+  ```
+- [ ] **Datenbank-Backup erstellt** (optional, aber empfohlen):
+  ```bash
+  # Über Admin-Panel: /admin/database
+  # Oder API: POST /api/admin/database/backup
+  ```
+
+### Während des Deployments
+
+- [ ] **Deployment-Script ausführen**: `./quick-deploy.sh`
+- [ ] **Logs beobachten** für:
+  - [ ] "Database downloaded from Cloud Storage successfully"
+  - [ ] "Build erfolgreich abgeschlossen"
+  - [ ] "Deployment abgeschlossen"
+
+### Nach dem Deployment
+
+- [ ] **Service-URL prüfen**:
+  ```bash
+  curl https://anschreiben-app-411832844870.europe-west1.run.app
+  ```
+
+- [ ] **Datenbank-Inhalt prüfen**:
+  - [ ] Admin-Panel öffnen: `/admin/database`
+  - [ ] Prüfen ob Bewerbungen vorhanden sind
+  - [ ] Prüfen ob Settings vorhanden sind
+  - [ ] Prüfen ob Resume vorhanden ist
+
+- [ ] **Admin-Konfigurationen prüfen**:
+  - [ ] `/admin/settings` - API-Key und Einstellungen
+  - [ ] `/admin/prompts` - Prompts sind vorhanden
+  - [ ] `/admin/generierung` - Generierungs-Einstellungen
+
+- [ ] **Resume prüfen**:
+  - [ ] `/resume` - Lebenslauf ist vorhanden
+
+- [ ] **Cloud Storage Synchronisation prüfen**:
+  ```bash
+  # Prüfen ob Datenbank im Bucket ist
+  gcloud storage ls gs://411832844870-anschreiben-data/anschreiben.db
+  
+  # Prüfen ob Backup existiert
+  gcloud storage ls gs://411832844870-anschreiben-data/anschreiben_backup.db
+  ```
+
+- [ ] **Service-Logs prüfen**:
+  ```bash
+  gcloud run services logs read anschreiben-app \
+    --region=europe-west1 \
+    --limit=50 \
+    --project=gen-lang-client-0764998759
+  ```
+
+## Häufige Probleme und Lösungen
+
+### Problem: Datenbank wurde zurückgesetzt
+
+**Symptome:**
+- Bewerbungen fehlen
+- Settings sind auf Standardwerte
+- Resume fehlt
+
+**Lösung:**
+1. Prüfen ob Datenbank in Cloud Storage existiert:
+   ```bash
+   gcloud storage ls gs://411832844870-anschreiben-data/anschreiben.db
+   ```
+
+2. Falls vorhanden, manuell synchronisieren:
+   - Admin-Panel: `/admin/database` → "Von Cloud Storage laden"
+   - Oder API: `POST /api/admin/database/sync`
+
+3. Falls nicht vorhanden, aus Backup wiederherstellen:
+   ```bash
+   gcloud storage cp gs://411832844870-anschreiben-data/anschreiben_backup.db \
+     ./anschreiben.db
+   ```
+
+### Problem: Environment-Variablen fehlen
+
+**Symptome:**
+- API-Calls schlagen fehl
+- Cloud Storage funktioniert nicht
+
+**Lösung:**
 ```bash
-# Dateien im Bucket auflisten
-gsutil ls gs://$GCP_PROJECT_ID-anschreiben-data/
-
-# Erwartete Dateien:
-# - anschreiben.db
-# - anschreiben_backup.db
-```
-
-- [ ] Datenbank-Dateien im Bucket vorhanden
-- [ ] Backup-Datei vorhanden
-
-### 10. Neustart-Test
-```bash
-# Service neu starten (simuliert Container-Neustart)
+# Environment-Variablen setzen
 gcloud run services update anschreiben-app \
-  --region europe-west1 \
-  --update-env-vars GCS_BUCKET_NAME="$GCP_PROJECT_ID-anschreiben-data"
+  --region=europe-west1 \
+  --update-env-vars GOOGLE_GENERATIVE_AI_API_KEY=your-key,GCS_BUCKET_NAME=411832844870-anschreiben-data \
+  --project=gen-lang-client-0764998759
 ```
 
-- [ ] Service neu gestartet
-- [ ] Daten nach Neustart noch vorhanden
-- [ ] Synchronisation funktioniert weiterhin
+### Problem: Job-Dokumente fehlen
 
-## 📊 Monitoring
+**Symptome:**
+- Hochgeladene PDFs sind nicht mehr verfügbar
 
-### 11. Logs prüfen
-```bash
-# Logs ansehen
-gcloud run services logs read anschreiben-app --region europe-west1 --limit 50
+**Lösung:**
+- Job-Dokumente werden in Cloud Storage gespeichert (`job-documents/`)
+- Prüfen:
+  ```bash
+  gcloud storage ls gs://411832844870-anschreiben-data/job-documents/
+  ```
 
-# Erwartete Log-Meldungen:
-# - "Cloud Storage is configured and ready for sync"
-# - "Database downloaded successfully from Cloud Storage" (beim Start)
-# - "Database uploaded successfully to Cloud Storage" (nach Schreiboperationen)
-```
+## Best Practices
 
-- [ ] Logs zeigen erfolgreiche Synchronisation
-- [ ] Keine Fehler in den Logs
+1. **Vor jedem Deployment:**
+   - Backup erstellen (über Admin-Panel)
+   - Prüfen ob Cloud Storage synchronisiert ist
 
-### 12. Admin-Panel prüfen
-- [ ] Admin-Panel: `/admin/database`
-- [ ] Cloud Storage Sektion zeigt Status
-- [ ] Manuelle Synchronisation funktioniert (Upload/Download Buttons)
+2. **Nach jedem Deployment:**
+   - Datenbank-Inhalt prüfen
+   - Admin-Konfigurationen prüfen
+   - Service-Logs prüfen
 
-## 🔒 Sicherheit & Backup
+3. **Regelmäßig:**
+   - Cloud Storage Synchronisation prüfen
+   - Backups verifizieren
+   - Environment-Variablen prüfen
 
-### 13. Backup-Strategie
-- [ ] Automatische Backups aktiv (wird bei jedem Upload erstellt)
-- [ ] Optional: Cloud Storage Versionierung aktiviert
-- [ ] Optional: Regelmäßige manuelle Backups geplant
+4. **Bei Problemen:**
+   - Service-Logs prüfen
+   - Cloud Storage prüfen
+   - Datenbank-Status prüfen (Admin-Panel)
 
-### 14. Zugriffskontrolle
-- [ ] Cloud Run Service Zugriff konfiguriert (authenticated/unauthenticated)
-- [ ] Cloud Storage Bucket Zugriff beschränkt (nur Service Account)
-- [ ] API Keys sicher gespeichert (nicht in Code)
+## Zusammenfassung
 
-## 📝 Dokumentation
+✅ **Alles wird automatisch gesichert:**
+- Datenbank (mit allen Tabellen) → Cloud Storage
+- Job-Dokumente → Cloud Storage
+- Environment-Variablen → Cloud Run Service Config
 
-### 15. Dokumentation aktualisiert
-- [ ] Team-Mitglieder informiert über Cloud Storage Setup
-- [ ] Bucket-Name und Projekt-ID dokumentiert
-- [ ] Zugangsdaten sicher gespeichert
+✅ **Beim Deployment:**
+- Datenbank wird automatisch aus Cloud Storage geladen
+- Mehrfache Retry-Versuche verhindern Datenverlust
+- Automatische Synchronisation nach Schreiboperationen
 
-## 🎯 Erfolgskriterien
-
-Die Deployment ist erfolgreich, wenn:
-- ✅ App läuft auf Cloud Run
-- ✅ Datenbank wird automatisch zu Cloud Storage synchronisiert
-- ✅ Daten bleiben nach Container-Neustart erhalten
-- ✅ Manuelle Synchronisation über Admin-Panel funktioniert
-- ✅ Keine Fehler in den Logs
-
-## 🆘 Troubleshooting
-
-### Problem: "Cloud Storage not configured"
-**Lösung:** Prüfen Sie, ob `GCS_BUCKET_NAME` als Environment-Variable gesetzt ist.
-
-### Problem: "Permission denied"
-**Lösung:** Prüfen Sie Service Account Berechtigungen:
-```bash
-gcloud projects add-iam-policy-binding $GCP_PROJECT_ID \
-  --member="serviceAccount:PROJECT_NUMBER-compute@developer.gserviceaccount.com" \
-  --role="roles/storage.objectAdmin"
-```
-
-### Problem: Daten gehen verloren nach Neustart
-**Lösung:** 
-1. Prüfen Sie Logs auf Synchronisations-Fehler
-2. Prüfen Sie, ob Dateien im Bucket vorhanden sind: `gsutil ls gs://...`
-3. Testen Sie manuelle Synchronisation über Admin-Panel
-
-## 📞 Support
-
-Bei Problemen:
-1. Logs prüfen: `gcloud run services logs read anschreiben-app --region europe-west1`
-2. Cloud Storage prüfen: `gsutil ls gs://$GCP_PROJECT_ID-anschreiben-data/`
-3. Admin-Panel testen: `/admin/database`
-4. Detaillierte Dokumentation: [CLOUD_STORAGE_SETUP.md](./CLOUD_STORAGE_SETUP.md)
-
+✅ **Nach dem Deployment:**
+- Prüfen ob Daten vorhanden sind
+- Prüfen ob Synchronisation funktioniert
+- Logs prüfen für Fehler
