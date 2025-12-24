@@ -245,13 +245,14 @@ function updateInitFile(settings: SettingDiff[]): void {
       const beforeInsert = afterArrayStart.substring(0, arrayEndMatch.index || 0);
       const lastBracket = beforeInsert.lastIndexOf(']');
       if (lastBracket !== -1) {
-        arrayEndMatch = { index: lastBracket, 0: ']' };
+        // Simulate RegExpMatchArray-like object properly for later code usage
+        arrayEndMatch = [']'];
+        arrayEndMatch.index = lastBracket;
       }
     }
-  }
-  
-  if (!arrayEndMatch) {
-    throw new Error('Could not find end of defaultSettings array in init.ts');
+    if (!arrayEndMatch) {
+      throw new Error('Could not find end of defaultSettings array in init.ts');
+    }
   }
   
   const arrayEnd = arrayStart + (arrayEndMatch.index || 0) + (arrayEndMatch[0].length || 1);
