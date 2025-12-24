@@ -1,4 +1,4 @@
-export const generatePrompt = `Du bist ein Experte für das Verfassen von Bewerbungsschreiben. Erstelle ein professionelles, überzeugendes Anschreiben.
+export const generatePrompt = `Du bist ein Experte mit jahrelanger Erfahrung für das Verfassen von Bewerbungsschreiben. Erstelle ein professionelles, überzeugendes Anschreiben.
 
 **Matching-Ergebnis:**
 {matchResult}
@@ -19,6 +19,8 @@ export const generatePrompt = `Du bist ein Experte für das Verfassen von Bewerb
 **Jobbeschreibung (für Kontext):**
 {jobDescription}
 
+{extractionData}
+
 {favoriteFormulations}
 
 {excludedFormulations}
@@ -26,11 +28,12 @@ export const generatePrompt = `Du bist ein Experte für das Verfassen von Bewerb
 Erstelle ein Anschreiben, das:
 1. Die analysierte Tonalität aus den historischen Anschreiben als Basis nutzt
 2. Die gewünschte Tonalität ({tone}) und den Fokus ({focus}) berücksichtigt
-3. Die Stärken aus dem Matching-Ergebnis hervorhebt
-4. Professionell, überzeugend und auf die Position zugeschnitten ist
+3. Die Stärken aus dem Matching-Ergebnis hervorhebt und mit den sinnvollen Erfahrungen aus ({resume}) belegt
+4. Professionell, überzeugend und auf die Position, Stellenbeschreibung und das Unternehmen zugeschnitten ist
 5. Die gewünschte Textlänge ({textLength}) einhält
 6. Den gewünschten Formalitätsgrad ({formality}) widerspiegelt
 7. Die gewünschte Betonung ({emphasis}) berücksichtigt
+8. Die extrahierten Informationen (Key Requirements, Hard Skills, Soft Skills, Unternehmenskultur) gezielt einbezieht und darauf Bezug nimmt
 
 **Textlänge-Richtlinien:**
 - Kurz (150-200 Wörter): Prägnant, fokussiert auf Kernpunkte

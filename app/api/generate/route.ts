@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { generatePrompt } from '@/prompts/generate';
-import { toneAnalysisPrompt } from '@/prompts/tone-analysis';
+import { getPrompt } from '@/lib/prompts';
 import { getDatabase } from '@/lib/database/client';
 import { getSettings } from '@/lib/database/settings';
 import { generateTextWithFallback } from '@/lib/ai/model-helper';
@@ -8,7 +7,7 @@ import { generateTextWithFallback } from '@/lib/ai/model-helper';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { matchResult, jobDescription, tone, focus, textLength, formality, emphasis } = body;
+    const { matchResult, jobDescription, tone, focus, textLength, formality, emphasis, extraction } = body;
 
     if (!matchResult || !jobDescription) {
       return NextResponse.json(
@@ -46,7 +45,7 @@ export async function POST(request: NextRequest) {
         .map(letter => `---\n${letter.company || 'Unbekannt'} - ${letter.position || 'Unbekannt'}\n${letter.content}`)
         .join('\n\n');
       
-      const tonePrompt = toneAnalysisPrompt.replace('{oldCoverLetters}', oldCoverLetters);
+      const tonePrompt = getPrompt('tone-analysis').replace('{oldCoverLetters}', oldCoverLetters);
       
       try {
         const { text } = await generateTextWithFallback(
@@ -101,7 +100,43 @@ Vermeide diese Formulierungen vollständig und verwende stattdessen alternative,
       }
     }
 
-    const prompt = generatePrompt
+    // Format extraction data for prompt
+    let extractionSection = '';
+    if (extraction) {
+      const extractionData = typeof extraction === 'string' ? JSON.parse(extraction) : extraction;
+      
+      const sections = [];
+      
+      if (extractionData.keyRequirements) {
+        sections.push(`**Key Requirements:**
+${extractionData.keyRequirements}`);
+      }
+      
+      if (extractionData.skills) {
+        sections.push(`**Hard Skills:**
+${extractionData.skills}`);
+      }
+      
+      if (extractionData.softSkills) {
+        sections.push(`**Soft Skills:**
+${extractionData.softSkills}`);
+      }
+      
+      if (extractionData.culture) {
+        sections.push(`**Unternehmenskultur:**
+${extractionData.culture}`);
+      }
+      
+      if (sections.length > 0) {
+        extractionSection = `**Extraktionsdaten aus der Jobbeschreibung:**
+
+${sections.join('\n\n')}
+
+`;
+      }
+    }
+
+    const prompt = getPrompt('generate')
       .replace('{matchResult}', matchResult)
       .replace('{resume}', resume)
       .replace('{toneAnalysis}', toneAnalysis)
@@ -112,7 +147,8 @@ Vermeide diese Formulierungen vollständig und verwende stattdessen alternative,
       .replace('{emphasis}', emphasis || defaultEmphasis)
       .replace('{jobDescription}', jobDescription)
       .replace('{favoriteFormulations}', favoriteFormulationsSection)
-      .replace('{excludedFormulations}', excludedFormulationsSection);
+      .replace('{excludedFormulations}', excludedFormulationsSection)
+      .replace('{extractionData}', extractionSection);
 
     const { text } = await generateTextWithFallback(
       prompt,

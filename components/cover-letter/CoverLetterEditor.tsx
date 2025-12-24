@@ -213,6 +213,7 @@ export function CoverLetterEditor({
           tone,
           focus,
           textLength: length,
+          extraction: application.extraction_data ? JSON.parse(application.extraction_data) : undefined,
         }),
       })
 
