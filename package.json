@@ -17,7 +17,8 @@
     "pipeline:status": "./scripts/pipeline.sh status",
     "pipeline:service": "./scripts/pipeline.sh service",
     "pipeline:logs": "./scripts/pipeline.sh logs",
-    "pipeline:rollback": "./scripts/pipeline.sh rollback"
+    "pipeline:rollback": "./scripts/pipeline.sh rollback",
+    "sync:prompts": "npx tsx scripts/sync-prompts-to-db.ts"
   },
   "dependencies": {
     "@ai-sdk/google": "^2.0.51",

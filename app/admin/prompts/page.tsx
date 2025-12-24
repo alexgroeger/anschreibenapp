@@ -11,6 +11,7 @@ import { Breadcrumbs } from "@/components/Breadcrumbs"
 const promptNames = [
   { key: "extract", label: "Extraktion", description: "Analysiert Jobbeschreibungen" },
   { key: "match", label: "Matching", description: "Vergleicht Job mit Profil" },
+  { key: "generate", label: "Generierung", description: "Erstellt Anschreiben" },
   { key: "tone-analysis", label: "Tonalitäts-Analyse", description: "Analysiert Schreibstil" },
 ]
 
@@ -20,6 +21,7 @@ export default function PromptsPage() {
   const [editedContent, setEditedContent] = useState<string>("")
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [syncing, setSyncing] = useState(false)
 
   useEffect(() => {
     fetchPrompts()
@@ -80,6 +82,33 @@ export default function PromptsPage() {
     }
   }
 
+  const handleSync = async () => {
+    if (!confirm('Möchten Sie die Prompts von den Dateien zur Datenbank synchronisieren? Dies überschreibt die aktuellen Prompts in der Datenbank.')) {
+      return
+    }
+
+    setSyncing(true)
+    try {
+      const response = await fetch("/api/admin/prompts/sync", {
+        method: "POST",
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        alert(`Erfolg: ${data.message}`)
+        await fetchPrompts()
+      } else {
+        const error = await response.json()
+        alert(`Fehler: ${error.error || 'Unbekannter Fehler'}`)
+      }
+    } catch (error) {
+      console.error("Error syncing prompts:", error)
+      alert("Fehler beim Synchronisieren der Prompts")
+    } finally {
+      setSyncing(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -96,15 +125,25 @@ export default function PromptsPage() {
           { label: "Prompts" },
         ]}
       />
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold">Prompt-Verwaltung</h1>
-        <p className="text-muted-foreground mt-2">
-          Bearbeiten Sie die KI-Prompts für verschiedene Funktionen
-        </p>
+      <div className="mb-8 flex justify-between items-start">
+        <div>
+          <h1 className="text-3xl font-bold">Prompt-Verwaltung</h1>
+          <p className="text-muted-foreground mt-2">
+            Bearbeiten Sie die KI-Prompts für verschiedene Funktionen
+          </p>
+        </div>
+        <Button 
+          variant="outline" 
+          onClick={handleSync} 
+          disabled={syncing}
+          className="ml-4"
+        >
+          {syncing ? "Synchronisiere..." : "Von Dateien synchronisieren"}
+        </Button>
       </div>
 
       <Tabs value={selectedPrompt} onValueChange={setSelectedPrompt}>
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           {promptNames.map((prompt) => (
             <TabsTrigger key={prompt.key} value={prompt.key}>
               {prompt.label}
@@ -151,3 +190,4 @@ export default function PromptsPage() {
     </div>
   )
 }
+
