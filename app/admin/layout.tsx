@@ -3,13 +3,18 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
-import { Home, Code, Settings, Database, Sparkles } from "lucide-react"
+import { Home, Code, Settings, Database, Sparkles, Briefcase } from "lucide-react"
 
 const adminNavItems = [
   {
     href: "/admin",
     label: "Übersicht",
     icon: Home,
+  },
+  {
+    href: "/admin/resume",
+    label: "Lebenslauf",
+    icon: Briefcase,
   },
   {
     href: "/admin/prompts",
@@ -53,7 +58,7 @@ export default function AdminLayout({
           </div>
           {adminNavItems.map((item) => {
             const Icon = item.icon
-            const active = pathname === item.href
+            const active = pathname === item.href || (item.href !== "/admin" && pathname?.startsWith(item.href))
             return (
               <Link
                 key={item.href}
@@ -78,3 +83,4 @@ export default function AdminLayout({
     </div>
   )
 }
+

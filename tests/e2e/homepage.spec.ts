@@ -5,7 +5,7 @@ test.describe('Homepage and Navigation', () => {
     await page.goto('/');
     
     // Check that the page loads without errors
-    await expect(page).toHaveTitle(/AI Cover Letter Architect|Dashboard/i);
+    await expect(page).toHaveTitle(/Anschreiben Muckibude|Dashboard/i);
     
     // Check for main content
     const mainContent = page.locator('main');
@@ -29,7 +29,6 @@ test.describe('Homepage and Navigation', () => {
     // Try to find and click navigation links
     const navLinks = [
       { text: /bewerbung|application/i, href: '/bewerbung-hinzufuegen' },
-      { text: /lebenslauf|resume/i, href: '/resume' },
       { text: /dashboard/i, href: '/' },
     ];
     

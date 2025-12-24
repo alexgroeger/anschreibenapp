@@ -33,12 +33,6 @@ const mainNavItems = [
     description: "Suche & Filter",
   },
   {
-    href: "/resume",
-    label: "Lebenslauf",
-    icon: Briefcase,
-    description: "Lebenslauf verwalten",
-  },
-  {
     href: "/cover-letters",
     label: "Alte Anschreiben",
     icon: FolderOpen,
@@ -53,6 +47,12 @@ const adminNavItems = [
     label: "Übersicht",
     icon: Home,
     description: "Admin-Dashboard",
+  },
+  {
+    href: "/admin/resume",
+    label: "Lebenslauf",
+    icon: Briefcase,
+    description: "Lebenslauf verwalten",
   },
   {
     href: "/admin/prompts",
