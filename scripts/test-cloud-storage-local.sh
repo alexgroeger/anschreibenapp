@@ -68,3 +68,4 @@ echo "  2. Cloud Storage Bucket erstellt"
 echo "  3. GCS_BUCKET_NAME in .env.local gesetzt"
 echo "  4. Authentifizierung: gcloud auth application-default login"
 
+

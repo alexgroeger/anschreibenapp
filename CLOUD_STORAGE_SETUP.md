@@ -187,3 +187,4 @@ Cloud Storage ist sehr kostengünstig:
 
 Für eine typische Anwendung mit mehreren tausend Bewerbungen: **< $1/Monat**
 
+

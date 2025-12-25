@@ -51,3 +51,4 @@ Um diese Synchronisation erneut durchzuführen, können Sie das Script ausführe
 npx tsx scripts/sync-admin-config.ts
 ```
 
+

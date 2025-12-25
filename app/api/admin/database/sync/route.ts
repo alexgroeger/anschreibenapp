@@ -1,104 +1,49 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { 
-  uploadDatabaseToCloud, 
-  downloadDatabaseFromCloud, 
-  isCloudStorageConfigured 
-} from '@/lib/storage/sync';
+import { getBucket, downloadDatabaseFromCloud, uploadDatabaseToCloud } from '@/lib/storage/sync';
 
-/**
- * GET: Check sync status and cloud storage configuration
- */
-export async function GET() {
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
+// GET: Cloud Storage Status prüfen
+export async function GET(request: NextRequest) {
   try {
-    const isConfigured = isCloudStorageConfigured();
-    const bucketName = process.env.GCS_BUCKET_NAME || null;
+    const bucket = getBucket();
+    const cloudStorageConfigured = bucket !== null;
     
-    let cloudFileInfo = null;
-    if (isConfigured && bucketName) {
-      try {
-        const { Storage } = await import('@google-cloud/storage');
-        const storage = new Storage();
-        const bucket = storage.bucket(bucketName);
-        const file = bucket.file('anschreiben.db');
-        const [exists] = await file.exists();
-        
-        if (exists) {
-          const [metadata] = await file.getMetadata();
-          cloudFileInfo = {
-            exists: true,
-            size: metadata.size,
-            updated: metadata.updated,
-            contentType: metadata.contentType,
-          };
-        } else {
-          cloudFileInfo = {
-            exists: false,
-          };
-        }
-      } catch (error) {
-        console.warn('Could not fetch cloud file info:', error);
-        // Continue without cloud file info
-      }
+    let bucketName: string | null = null;
+    if (cloudStorageConfigured && bucket) {
+      bucketName = bucket.name;
     }
     
-    // Get local database info
-    let localFileInfo = null;
-    try {
-      const fs = await import('fs');
-      const path = await import('path');
-      const dbPath = path.join(process.cwd(), 'data', 'anschreiben.db');
-      
-      if (fs.existsSync(dbPath)) {
-        const stats = fs.statSync(dbPath);
-        localFileInfo = {
-          exists: true,
-          size: stats.size,
-          modified: stats.mtime.toISOString(),
-        };
-      } else {
-        localFileInfo = {
-          exists: false,
-        };
-      }
-    } catch (error) {
-      console.warn('Could not fetch local file info:', error);
-    }
-    
-    return NextResponse.json(
-      {
-        cloudStorageConfigured: isConfigured,
-        bucketName: bucketName,
-        message: isConfigured 
-          ? 'Cloud Storage is configured and ready for sync'
-          : 'Cloud Storage is not configured. Set GCS_BUCKET_NAME environment variable to enable sync.',
-        cloudFile: cloudFileInfo,
-        localFile: localFileInfo,
-      },
-      { status: 200 }
-    );
+    return NextResponse.json({
+      cloudStorageConfigured,
+      bucketName,
+      message: cloudStorageConfigured 
+        ? 'Cloud Storage is configured and ready for sync'
+        : 'Cloud Storage is not configured. Please set GCS_BUCKET_NAME environment variable.'
+    }, { status: 200 });
   } catch (error) {
     console.error('Error checking sync status:', error);
     return NextResponse.json(
-      { error: 'Failed to check sync status', details: error instanceof Error ? error.message : String(error) },
+      { 
+        cloudStorageConfigured: false,
+        error: 'Failed to check sync status',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      },
       { status: 500 }
     );
   }
 }
 
-/**
- * POST: Manually sync database to Cloud Storage
- */
+// POST: Manuelle Synchronisation (upload oder download)
 export async function POST(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
-    const action = searchParams.get('action') || 'upload'; // 'upload' or 'download'
+    const body = await request.json();
+    const { action } = body; // 'upload' oder 'download'
     
-    if (!isCloudStorageConfigured()) {
+    if (!action || !['upload', 'download'].includes(action)) {
       return NextResponse.json(
-        { 
-          error: 'Cloud Storage is not configured',
-          message: 'Please set GCS_BUCKET_NAME environment variable to enable sync'
-        },
+        { error: 'Invalid action. Must be "upload" or "download"' },
         { status: 400 }
       );
     }
@@ -109,8 +54,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
           { 
             success: true,
-            message: 'Database successfully uploaded to Cloud Storage',
-            action: 'upload'
+            message: 'Database uploaded to Cloud Storage successfully'
           },
           { status: 200 }
         );
@@ -118,8 +62,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
           { 
             success: false,
-            error: 'Failed to upload database to Cloud Storage',
-            action: 'upload'
+            error: 'Failed to upload database to Cloud Storage'
           },
           { status: 500 }
         );
@@ -127,15 +70,10 @@ export async function POST(request: NextRequest) {
     } else if (action === 'download') {
       const success = await downloadDatabaseFromCloud();
       if (success) {
-        // CRITICAL: Reset database instance cache so it reloads the downloaded database
-        const { closeDatabase } = await import('@/lib/database/client');
-        closeDatabase();
-        
         return NextResponse.json(
           { 
             success: true,
-            message: 'Database successfully downloaded from Cloud Storage and cache cleared',
-            action: 'download'
+            message: 'Database downloaded from Cloud Storage successfully'
           },
           { status: 200 }
         );
@@ -143,24 +81,25 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
           { 
             success: false,
-            error: 'Failed to download database from Cloud Storage or database does not exist in cloud',
-            action: 'download'
+            error: 'Failed to download database from Cloud Storage'
           },
           { status: 500 }
         );
       }
-    } else {
-      return NextResponse.json(
-        { error: 'Invalid action. Use ?action=upload or ?action=download' },
-        { status: 400 }
-      );
     }
+    
+    return NextResponse.json(
+      { error: 'Unknown action' },
+      { status: 400 }
+    );
   } catch (error) {
     console.error('Error syncing database:', error);
     return NextResponse.json(
-      { error: 'Failed to sync database', details: error instanceof Error ? error.message : String(error) },
+      { 
+        error: 'Failed to sync database',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      },
       { status: 500 }
     );
   }
 }
-

@@ -89,3 +89,4 @@ Alle Logos sind als SVG erstellt und können einfach angepasst werden:
 - Professionell
 - Passt zur App-Funktionalität
 
+

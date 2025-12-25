@@ -87,22 +87,25 @@ gcloud auth login
 gcloud config set project gen-lang-client-0764998759
 ```
 
-### 3. API Key setzen (optional)
+### 3. API Key (automatisch erkannt)
 
-Der API Key kann auf verschiedene Weise bereitgestellt werden:
+Der API Key wird automatisch in folgender Reihenfolge gesucht:
 
-**Option A: Environment-Variable**
-```bash
-export GOOGLE_GENERATIVE_AI_API_KEY="ihr-api-key"
-```
+1. **Environment-Variable** (höchste Priorität)
+   ```bash
+   export GOOGLE_GENERATIVE_AI_API_KEY="ihr-api-key"
+   ```
 
-**Option B: In .env.local**
-```bash
-echo "GOOGLE_GENERATIVE_AI_API_KEY=ihr-api-key" >> .env.local
-```
+2. **Aus .env.local Datei**
+   ```bash
+   echo "GOOGLE_GENERATIVE_AI_API_KEY=ihr-api-key" >> .env.local
+   ```
 
-**Option C: Interaktiv beim Ausführen**
-Das Pipeline-Script fragt interaktiv nach dem API Key, falls er nicht gesetzt ist.
+3. **Automatisch aus Cloud Run Service** (wird automatisch geholt, falls verfügbar)
+
+4. **Interaktiv** (nur wenn Terminal interaktiv ist und alle anderen Optionen fehlschlagen)
+
+**Hinweis**: In den meisten Fällen wird der API Key automatisch aus dem Cloud Run Service geholt, wenn er dort bereits konfiguriert ist. Sie müssen ihn nicht manuell setzen!
 
 ## 📝 Workflow-Beispiele
 

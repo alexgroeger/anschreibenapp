@@ -33,3 +33,4 @@ Wenn du mit Pipelines arbeitest, nutze die verfügbaren npm scripts:
 - Tests lokal ausführen: `npm run test:e2e`
 - TypeScript-Check: `npx tsc --noEmit`
 
+

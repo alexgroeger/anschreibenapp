@@ -120,3 +120,4 @@ echo "1. Die App wird beim nächsten Start eine neue Datenbank erstellen"
 echo "2. Erstellen Sie neue Einträge in der App"
 echo "3. Die Datenbank wird automatisch zu Cloud Storage synchronisiert"
 
+

@@ -34,10 +34,18 @@ export default function GenerierungPage() {
     try {
       // Fetch prompt
       const promptResponse = await fetch("/api/admin/prompts")
+      if (!promptResponse.ok) {
+        throw new Error(`HTTP error! status: ${promptResponse.status}`)
+      }
       const promptData = await promptResponse.json()
-      if (promptData.prompts?.generate) {
+      if (promptData.prompts?.generate?.content) {
         setPrompt(promptData.prompts.generate.content)
         setEditedPrompt(promptData.prompts.generate.content)
+      } else {
+        // Fallback: Setze leeren String wenn Prompt nicht gefunden
+        console.warn("Generate prompt not found in response:", promptData)
+        setPrompt("")
+        setEditedPrompt("")
       }
 
       // Fetch settings

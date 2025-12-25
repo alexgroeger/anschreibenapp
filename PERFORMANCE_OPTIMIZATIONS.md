@@ -238,3 +238,4 @@ export async function ApplicationList() {
 - Neue Datenbankabfragen sollten Indizes nutzen
 - Neue Bilder sollten OptimizedImage verwenden
 
+

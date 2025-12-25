@@ -24,23 +24,47 @@ export async function GET(request: NextRequest) {
     const db = getDatabase();
     const prompts: Record<string, any> = {};
 
-    for (const [name, promptDef] of Object.entries(promptFiles)) {
-      // Versuche zuerst aus der Datenbank zu laden
-      const getPrompt = db.prepare(`
-        SELECT content, updated_at FROM prompts WHERE prompt_name = ?
+    // Ensure prompts table exists (for backward compatibility)
+    try {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS prompts (
+          prompt_name TEXT PRIMARY KEY,
+          content TEXT NOT NULL,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_by TEXT
+        )
       `);
-      const dbPrompt = getPrompt.get(name) as any;
+    } catch (tableError) {
+      console.warn('Could not ensure prompts table exists:', tableError);
+    }
 
-      if (dbPrompt) {
-        // Verwende Prompt aus Datenbank
-        prompts[name] = {
-          name,
-          content: dbPrompt.content,
-          file: promptDef.file,
-          updated_at: dbPrompt.updated_at,
-        };
-      } else {
-        // Fallback zu Datei
+    for (const [name, promptDef] of Object.entries(promptFiles)) {
+      try {
+        // Versuche zuerst aus der Datenbank zu laden
+        const getPrompt = db.prepare(`
+          SELECT content, updated_at FROM prompts WHERE prompt_name = ?
+        `);
+        const dbPrompt = getPrompt.get(name) as any;
+
+        if (dbPrompt && dbPrompt.content) {
+          // Verwende Prompt aus Datenbank
+          prompts[name] = {
+            name,
+            content: dbPrompt.content,
+            file: promptDef.file,
+            updated_at: dbPrompt.updated_at,
+          };
+        } else {
+          // Fallback zu Datei
+          prompts[name] = {
+            name,
+            content: promptDef.content,
+            file: promptDef.file,
+          };
+        }
+      } catch (queryError) {
+        console.warn(`Error loading prompt ${name} from database, using file fallback:`, queryError);
+        // Fallback zu Datei bei Fehler
         prompts[name] = {
           name,
           content: promptDef.content,
@@ -52,10 +76,16 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ prompts }, { status: 200 });
   } catch (error) {
     console.error('Error fetching prompts:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch prompts' },
-      { status: 500 }
-    );
+    // Return fallback prompts from files if database fails
+    const fallbackPrompts: Record<string, any> = {};
+    for (const [name, promptDef] of Object.entries(promptFiles)) {
+      fallbackPrompts[name] = {
+        name,
+        content: promptDef.content,
+        file: promptDef.file,
+      };
+    }
+    return NextResponse.json({ prompts: fallbackPrompts }, { status: 200 });
   }
 }
 

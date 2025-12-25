@@ -12,3 +12,4 @@ export function isSupportedFileType(file: File): boolean {
   const supportedTypes = ['pdf', 'txt', 'docx', 'doc'];
   return supportedTypes.includes(fileExtension || '');
 }
+

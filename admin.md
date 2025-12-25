@@ -553,3 +553,4 @@ CREATE TABLE IF NOT EXISTS resume_versions (
 - Benutzer-Feedback-Integration
 - Template-System für Anschreiben
 - Automatische Qualitätsbewertung
+

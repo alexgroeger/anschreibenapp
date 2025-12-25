@@ -51,3 +51,4 @@ export function setSetting(key: string, value: string): void {
 export function invalidateSettingsCache(): void {
   // Cache invalidation would go here if caching is implemented
 }
+

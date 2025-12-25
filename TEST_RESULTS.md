@@ -158,3 +158,4 @@
 
 Alle lokalen Tests waren erfolgreich. Die Cloud Storage Integration ist funktionsfähig und bereit für das Deployment. Die fehlenden Tests (echte Cloud Storage Synchronisation) können nach dem Deployment durchgeführt werden.
 
+

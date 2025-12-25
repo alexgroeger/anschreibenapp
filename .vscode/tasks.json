@@ -17,6 +17,12 @@
         "showReuseMessage": true,
         "clear": false
       },
+      "options": {
+        "shell": {
+          "executable": "/bin/zsh",
+          "args": ["-l", "-c"]
+        }
+      },
       "problemMatcher": []
     },
     {
@@ -34,6 +40,12 @@
         "panel": "shared",
         "showReuseMessage": true,
         "clear": false
+      },
+      "options": {
+        "shell": {
+          "executable": "/bin/zsh",
+          "args": ["-l", "-c"]
+        }
       },
       "problemMatcher": []
     },
@@ -53,6 +65,12 @@
         "showReuseMessage": true,
         "clear": false
       },
+      "options": {
+        "shell": {
+          "executable": "/bin/zsh",
+          "args": ["-l", "-c"]
+        }
+      },
       "problemMatcher": []
     },
     {
@@ -67,6 +85,12 @@
         "panel": "shared",
         "showReuseMessage": true,
         "clear": false
+      },
+      "options": {
+        "shell": {
+          "executable": "/bin/zsh",
+          "args": ["-l", "-c"]
+        }
       },
       "problemMatcher": []
     },
@@ -83,6 +107,12 @@
         "showReuseMessage": true,
         "clear": false
       },
+      "options": {
+        "shell": {
+          "executable": "/bin/zsh",
+          "args": ["-l", "-c"]
+        }
+      },
       "problemMatcher": []
     },
     {
@@ -98,6 +128,12 @@
         "showReuseMessage": true,
         "clear": false
       },
+      "options": {
+        "shell": {
+          "executable": "/bin/zsh",
+          "args": ["-l", "-c"]
+        }
+      },
       "problemMatcher": []
     },
     {
@@ -112,6 +148,12 @@
         "panel": "shared",
         "showReuseMessage": true,
         "clear": false
+      },
+      "options": {
+        "shell": {
+          "executable": "/bin/zsh",
+          "args": ["-l", "-c"]
+        }
       },
       "problemMatcher": []
     },
@@ -179,12 +221,16 @@
         "showReuseMessage": true,
         "clear": false
       },
-      "problemMatcher": [],
       "options": {
+        "shell": {
+          "executable": "/bin/zsh",
+          "args": ["-l", "-c"]
+        },
         "env": {
           "GOOGLE_GENERATIVE_AI_API_KEY": "${env:GOOGLE_GENERATIVE_AI_API_KEY}"
         }
-      }
+      },
+      "problemMatcher": []
     }
   ]
 }

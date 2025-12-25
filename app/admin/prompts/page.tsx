@@ -36,13 +36,27 @@ export default function PromptsPage() {
   const fetchPrompts = async () => {
     try {
       const response = await fetch("/api/admin/prompts")
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
       const data = await response.json()
-      setPrompts(data.prompts)
-      if (data.prompts[selectedPrompt]) {
-        setEditedContent(data.prompts[selectedPrompt].content)
+      if (data.prompts && typeof data.prompts === 'object') {
+        setPrompts(data.prompts)
+        if (data.prompts[selectedPrompt]) {
+          setEditedContent(data.prompts[selectedPrompt].content)
+        } else {
+          // Fallback: Setze leeren String wenn Prompt nicht gefunden
+          setEditedContent("")
+        }
+      } else {
+        console.error("Invalid prompts data:", data)
+        setPrompts({})
+        setEditedContent("")
       }
     } catch (error) {
       console.error("Error fetching prompts:", error)
+      setPrompts({})
+      setEditedContent("")
     } finally {
       setLoading(false)
     }

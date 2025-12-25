@@ -38,6 +38,20 @@ export async function POST(request: NextRequest) {
     
     const db = getDatabase();
     
+    // Ensure resume table exists (for backward compatibility)
+    try {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS resume (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          content TEXT NOT NULL,
+          uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+    } catch (tableError) {
+      console.warn('Could not ensure resume table exists:', tableError);
+    }
+    
     // Check if resume exists
     const existing = db.prepare('SELECT id FROM resume LIMIT 1').get();
     
@@ -47,6 +61,8 @@ export async function POST(request: NextRequest) {
         .prepare('UPDATE resume SET content = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
         .run(content, (existing as { id: number }).id);
       
+      console.log('Resume updated, result changes:', result.changes);
+      
       // Ensure all writes are flushed before syncing
       try {
         db.pragma('wal_checkpoint(TRUNCATE)');
@@ -55,7 +71,13 @@ export async function POST(request: NextRequest) {
       }
       
       // Sync to cloud storage after write
-      await syncDatabaseAfterWrite();
+      try {
+        await syncDatabaseAfterWrite();
+        console.log('Resume synced to cloud storage successfully');
+      } catch (syncError) {
+        console.error('Error syncing resume to cloud storage:', syncError);
+        // Don't fail the request if sync fails, but log the error
+      }
       
       return NextResponse.json(
         { message: 'Resume updated successfully', id: (existing as { id: number }).id },
@@ -67,6 +89,8 @@ export async function POST(request: NextRequest) {
         .prepare('INSERT INTO resume (content) VALUES (?)')
         .run(content);
       
+      console.log('Resume created, new ID:', result.lastInsertRowid);
+      
       // Ensure all writes are flushed before syncing
       try {
         db.pragma('wal_checkpoint(TRUNCATE)');
@@ -75,7 +99,13 @@ export async function POST(request: NextRequest) {
       }
       
       // Sync to cloud storage after write
-      await syncDatabaseAfterWrite();
+      try {
+        await syncDatabaseAfterWrite();
+        console.log('Resume synced to cloud storage successfully');
+      } catch (syncError) {
+        console.error('Error syncing resume to cloud storage:', syncError);
+        // Don't fail the request if sync fails, but log the error
+      }
       
       return NextResponse.json(
         { message: 'Resume created successfully', id: result.lastInsertRowid },
@@ -85,7 +115,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Error saving resume:', error);
     return NextResponse.json(
-      { error: 'Failed to save resume' },
+      { error: 'Failed to save resume', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
   }

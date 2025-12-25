@@ -84,3 +84,4 @@ function syncPromptsToDatabase() {
 console.log('🔄 Synchronisiere Prompts von Dateien zur Datenbank...\n');
 syncPromptsToDatabase();
 
+

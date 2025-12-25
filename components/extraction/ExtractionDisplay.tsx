@@ -483,3 +483,4 @@ export function ExtractionDisplay({ extraction, onProceed, onExtractionChange, o
     </div>
   )
 }
+

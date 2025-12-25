@@ -11,15 +11,6 @@ if (!fs.existsSync(dataDir)) {
 }
 
 export function initDatabase(): Database.Database {
-  // CRITICAL: Check if database file exists before creating new connection
-  // This ensures we don't overwrite a database that was just downloaded from Cloud Storage
-  const dbExists = fs.existsSync(dbPath);
-  if (dbExists) {
-    console.log(`[DB Init] Using existing database at ${dbPath} (${fs.statSync(dbPath).size} bytes)`);
-  } else {
-    console.log(`[DB Init] Creating new database at ${dbPath}`);
-  }
-  
   const db = new Database(dbPath);
   
   // Enable foreign keys
@@ -264,7 +255,7 @@ export function initDatabase(): Database.Database {
     { key: 'default_text_length', value: 'mittel', category: 'generation', description: 'Standard-Textlänge' },
     { key: 'default_tone', value: 'professionell', category: 'generation', description: 'Standard-Tonalität' },
     { key: 'excluded_formulations', value: 'mit großem Interesse habe ich Ihre Stellenausschreibung für die Position XYZ gelesen', category: 'generation', description: 'Ausgeschlossene Formulierungen (eine pro Zeile)' },
-    { key: 'favorite_formulations', value: '', category: 'generation', description: 'Favorisierte Formulierungen (eine pro Zeile)' },
+    { key: 'favorite_formulations', value: '', category: 'generation', description: 'Favorisierte Formulierungen (eine pro Zeile)' }
   ];
 
   const insertSetting = db.prepare(`

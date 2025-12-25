@@ -35,14 +35,42 @@ print_error() {
     echo -e "${RED}✗ $1${NC}"
 }
 
-# Prüfe ob gcloud installiert ist
+# Prüfe ob gcloud installiert ist und füge es zum PATH hinzu falls nötig
 check_gcloud() {
-    if ! command -v gcloud &> /dev/null; then
-        print_error "gcloud ist nicht installiert oder nicht im PATH"
-        echo "Bitte installieren Sie gcloud (siehe SETUP_GCLOUD.md)"
-        exit 1
+    # Prüfe ob gcloud bereits im PATH ist
+    if command -v gcloud &> /dev/null; then
+        print_success "gcloud gefunden"
+        return 0
     fi
-    print_success "gcloud gefunden"
+    
+    # Suche gcloud an typischen Installationsorten
+    GCLOUD_PATHS=(
+        "$HOME/google-cloud-sdk/bin/gcloud"
+        "/usr/local/bin/gcloud"
+        "/opt/homebrew/bin/gcloud"
+        "/usr/bin/gcloud"
+    )
+    
+    for gcloud_path in "${GCLOUD_PATHS[@]}"; do
+        if [ -f "$gcloud_path" ]; then
+            print_warning "gcloud gefunden, aber nicht im PATH. Füge hinzu: $(dirname "$gcloud_path")"
+            export PATH="$(dirname "$gcloud_path"):$PATH"
+            if command -v gcloud &> /dev/null; then
+                print_success "gcloud jetzt verfügbar"
+                return 0
+            fi
+        fi
+    done
+    
+    # Wenn immer noch nicht gefunden
+    print_error "gcloud ist nicht installiert oder nicht im PATH"
+    echo ""
+    echo "Bitte installieren Sie gcloud:"
+    echo "  macOS (Homebrew): brew install --cask google-cloud-sdk"
+    echo "  Oder manuell: curl https://sdk.cloud.google.com | bash"
+    echo ""
+    echo "Siehe SETUP_GCLOUD.md für Details"
+    exit 1
 }
 
 # Prüfe ob eingeloggt
@@ -104,6 +132,53 @@ run_tests() {
     esac
 }
 
+# API Key aus verschiedenen Quellen holen
+get_api_key() {
+    # 1. Prüfe Environment-Variable
+    if [ -n "$GOOGLE_GENERATIVE_AI_API_KEY" ]; then
+        print_success "API Key aus Environment-Variable gefunden"
+        return 0
+    fi
+    
+    # 2. Prüfe .env.local Datei
+    if [ -f ".env.local" ]; then
+        API_KEY=$(grep "^GOOGLE_GENERATIVE_AI_API_KEY=" .env.local | cut -d'=' -f2 | tr -d '"' | tr -d "'" | xargs)
+        if [ -n "$API_KEY" ]; then
+            export GOOGLE_GENERATIVE_AI_API_KEY="$API_KEY"
+            print_success "API Key aus .env.local geladen"
+            return 0
+        fi
+    fi
+    
+    # 3. Hole API Key aus Cloud Run Service
+    print_warning "API Key nicht gefunden. Versuche aus Cloud Run zu holen..."
+    API_KEY=$(gcloud run services describe $SERVICE_NAME \
+        --region=$REGION \
+        --format='value(spec.template.spec.containers[0].env[0].value)' \
+        --project=$PROJECT_ID 2>/dev/null | head -1)
+    
+    if [ -n "$API_KEY" ] && [ "$API_KEY" != "None" ]; then
+        export GOOGLE_GENERATIVE_AI_API_KEY="$API_KEY"
+        print_success "API Key aus Cloud Run Service geladen"
+        return 0
+    fi
+    
+    # 4. Interaktive Eingabe (nur wenn nicht in CI)
+    if [ -z "$CI" ] && [ -t 0 ]; then
+        print_warning "API Key nicht gefunden"
+        read -p "Möchten Sie den API Key jetzt eingeben? (y/n) " -n 1 -r
+        echo
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            read -sp "API Key: " api_key
+            echo
+            export GOOGLE_GENERATIVE_AI_API_KEY="$api_key"
+            return 0
+        fi
+    fi
+    
+    return 1
+}
+
 # Pipeline manuell auslösen
 trigger_pipeline() {
     print_header "Pipeline manuell auslösen"
@@ -114,19 +189,15 @@ trigger_pipeline() {
     # Projekt setzen
     gcloud config set project $PROJECT_ID
     
-    # API Key prüfen
-    if [ -z "$GOOGLE_GENERATIVE_AI_API_KEY" ]; then
-        print_warning "GOOGLE_GENERATIVE_AI_API_KEY ist nicht gesetzt"
-        read -p "Möchten Sie den API Key jetzt eingeben? (y/n) " -n 1 -r
-        echo
-        if [[ $REPLY =~ ^[Yy]$ ]]; then
-            read -sp "API Key: " api_key
-            echo
-            export GOOGLE_GENERATIVE_AI_API_KEY="$api_key"
-        else
-            print_error "API Key erforderlich"
-            exit 1
-        fi
+    # API Key holen
+    if ! get_api_key; then
+        print_error "API Key erforderlich"
+        echo ""
+        echo "Bitte setzen Sie den API Key auf eine der folgenden Arten:"
+        echo "  1. Environment-Variable: export GOOGLE_GENERATIVE_AI_API_KEY='ihr-key'"
+        echo "  2. In .env.local: GOOGLE_GENERATIVE_AI_API_KEY=ihr-key"
+        echo "  3. Oder geben Sie ihn interaktiv ein (wenn Terminal interaktiv ist)"
+        exit 1
     fi
     
     print_success "Starte Pipeline..."
