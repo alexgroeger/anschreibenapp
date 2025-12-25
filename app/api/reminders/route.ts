@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDatabase, getCachedStatement } from '@/lib/database/client';
+import { getDatabase, getCachedStatement, syncDatabaseAfterWrite } from '@/lib/database/client';
 import { calculateNextOccurrence, shouldRecurrenceContinue } from '@/lib/reminders/recurrence';
 
 // Route segment config - force dynamic for real-time data
@@ -243,6 +243,10 @@ export async function POST(request: NextRequest) {
     }
     
     console.log('Reminder retrieved successfully:', reminder.id);
+    
+    // Sync to cloud storage after write
+    await syncDatabaseAfterWrite();
+    
     return NextResponse.json({ reminder }, { status: 201 });
   } catch (error) {
     console.error('Error creating reminder:', error);

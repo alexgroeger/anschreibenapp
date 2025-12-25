@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDatabase } from '@/lib/database/client';
+import { getDatabase, syncDatabaseAfterWrite } from '@/lib/database/client';
 
 export async function DELETE(
   request: NextRequest,
@@ -27,6 +27,9 @@ export async function DELETE(
         { status: 404 }
       );
     }
+    
+    // Sync to cloud storage after write
+    await syncDatabaseAfterWrite();
     
     return NextResponse.json(
       { message: 'Cover letter deleted successfully' },

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDatabase, getCachedStatement } from '@/lib/database/client';
+import { getDatabase, getCachedStatement, syncDatabaseAfterWrite } from '@/lib/database/client';
 
 // GET: Alle Vorschläge einer Bewerbung abrufen
 export async function GET(
@@ -106,6 +106,9 @@ export async function POST(
       .prepare('SELECT * FROM cover_letter_suggestions WHERE id = ?')
       .get(suggestionId) as any;
     
+    // Sync to cloud storage after write
+    await syncDatabaseAfterWrite();
+    
     return NextResponse.json(
       { suggestion },
       { status: 201 }
@@ -118,3 +121,5 @@ export async function POST(
     );
   }
 }
+
+

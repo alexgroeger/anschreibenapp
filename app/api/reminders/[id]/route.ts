@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDatabase, getCachedStatement } from '@/lib/database/client';
+import { getDatabase, getCachedStatement, syncDatabaseAfterWrite } from '@/lib/database/client';
 import { calculateNextOccurrence } from '@/lib/reminders/recurrence';
 
 export async function GET(
@@ -149,6 +149,9 @@ export async function PATCH(
     const reminder = getCachedStatement('SELECT * FROM reminders WHERE id = ?')
       .get(id) as any;
     
+    // Sync to cloud storage after write
+    await syncDatabaseAfterWrite();
+    
     return NextResponse.json({ reminder }, { status: 200 });
   } catch (error) {
     console.error('Error updating reminder:', error);
@@ -186,6 +189,9 @@ export async function DELETE(
       );
     }
     
+    // Sync to cloud storage after write
+    await syncDatabaseAfterWrite();
+    
     return NextResponse.json(
       { message: 'Reminder deleted successfully' },
       { status: 200 }
@@ -198,4 +204,5 @@ export async function DELETE(
     );
   }
 }
+
 

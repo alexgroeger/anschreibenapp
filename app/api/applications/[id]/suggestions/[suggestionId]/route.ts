@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDatabase, getCachedStatement } from '@/lib/database/client';
+import { getDatabase, getCachedStatement, syncDatabaseAfterWrite } from '@/lib/database/client';
 
 // PATCH: Vorschlag aktualisieren (akzeptieren/ablehnen)
 export async function PATCH(
@@ -51,6 +51,9 @@ export async function PATCH(
       .prepare('SELECT * FROM cover_letter_suggestions WHERE id = ?')
       .get(suggestionId) as any;
     
+    // Sync to cloud storage after write
+    await syncDatabaseAfterWrite();
+    
     return NextResponse.json(
       { suggestion: updatedSuggestion },
       { status: 200 }
@@ -99,6 +102,9 @@ export async function DELETE(
     db.prepare('DELETE FROM cover_letter_suggestions WHERE id = ?')
       .run(suggestionId);
     
+    // Sync to cloud storage after write
+    await syncDatabaseAfterWrite();
+    
     return NextResponse.json(
       { message: 'Suggestion deleted successfully' },
       { status: 200 }
@@ -111,3 +117,5 @@ export async function DELETE(
     );
   }
 }
+
+

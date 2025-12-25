@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDatabase } from '@/lib/database/client';
+import { getDatabase, syncDatabaseAfterWrite } from '@/lib/database/client';
 import { syncDeadlineReminder } from '@/lib/reminders/deadline-sync';
 
 /**
@@ -48,6 +48,9 @@ export async function POST(request: NextRequest) {
       }
     }
     
+    // Sync to cloud storage after write
+    await syncDatabaseAfterWrite();
+    
     return NextResponse.json({
       message: 'Reminders synchronized',
       total: applicationsWithDeadlines.length,
@@ -63,4 +66,5 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
 

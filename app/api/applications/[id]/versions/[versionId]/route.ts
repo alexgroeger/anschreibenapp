@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDatabase, getCachedStatement } from '@/lib/database/client';
+import { getDatabase, getCachedStatement, syncDatabaseAfterWrite } from '@/lib/database/client';
 
 // GET: Spezifische Version abrufen
 export async function GET(
@@ -99,6 +99,9 @@ export async function POST(
       .prepare('SELECT * FROM cover_letter_versions WHERE id = ?')
       .get(newVersionId) as any;
     
+    // Sync to cloud storage after write
+    await syncDatabaseAfterWrite();
+    
     return NextResponse.json(
       { version: newVersion },
       { status: 201 }
@@ -111,3 +114,5 @@ export async function POST(
     );
   }
 }
+
+

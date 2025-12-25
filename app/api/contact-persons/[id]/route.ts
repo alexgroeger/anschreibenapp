@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDatabase } from '@/lib/database/client';
+import { getDatabase, syncDatabaseAfterWrite } from '@/lib/database/client';
 
 export async function DELETE(
   request: NextRequest,
@@ -28,6 +28,9 @@ export async function DELETE(
       );
     }
     
+    // Sync to cloud storage after write
+    await syncDatabaseAfterWrite();
+    
     return NextResponse.json(
       { message: 'Contact person deleted successfully' },
       { status: 200 }
@@ -40,3 +43,5 @@ export async function DELETE(
     );
   }
 }
+
+

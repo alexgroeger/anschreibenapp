@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDatabase } from '@/lib/database/client';
+import { getDatabase, syncDatabaseAfterWrite } from '@/lib/database/client';
 import { downloadFileFromCloud } from '@/lib/storage/sync';
 import { parseFile } from '@/lib/file-parser';
 
@@ -72,6 +72,9 @@ export async function POST(request: NextRequest) {
         failed++;
       }
     }
+    
+    // Sync to cloud storage after write
+    await syncDatabaseAfterWrite();
     
     return NextResponse.json(
       {

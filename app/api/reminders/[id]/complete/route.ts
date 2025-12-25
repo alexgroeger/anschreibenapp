@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDatabase, getCachedStatement } from '@/lib/database/client';
+import { getDatabase, getCachedStatement, syncDatabaseAfterWrite } from '@/lib/database/client';
 import { calculateNextOccurrence, shouldRecurrenceContinue } from '@/lib/reminders/recurrence';
 
 export async function POST(
@@ -85,6 +85,9 @@ export async function POST(
     const updatedReminder = getCachedStatement('SELECT * FROM reminders WHERE id = ?')
       .get(id) as any;
     
+    // Sync to cloud storage after write
+    await syncDatabaseAfterWrite();
+    
     return NextResponse.json({ reminder: updatedReminder }, { status: 200 });
   } catch (error) {
     console.error('Error completing reminder:', error);
@@ -129,6 +132,9 @@ export async function PATCH(
     const reminder = getCachedStatement('SELECT * FROM reminders WHERE id = ?')
       .get(id) as any;
     
+    // Sync to cloud storage after write
+    await syncDatabaseAfterWrite();
+    
     return NextResponse.json({ reminder }, { status: 200 });
   } catch (error) {
     console.error('Error uncompleting reminder:', error);
@@ -138,4 +144,5 @@ export async function PATCH(
     );
   }
 }
+
 

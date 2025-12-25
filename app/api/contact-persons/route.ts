@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDatabase } from '@/lib/database/client';
+import { getDatabase, syncDatabaseAfterWrite } from '@/lib/database/client';
 
 export async function GET(request: NextRequest) {
   try {
@@ -48,6 +48,9 @@ export async function POST(request: NextRequest) {
     const contact = db
       .prepare('SELECT * FROM contact_persons WHERE id = ?')
       .get(result.lastInsertRowid);
+    
+    // Sync to cloud storage after write
+    await syncDatabaseAfterWrite();
     
     return NextResponse.json(
       { contact },

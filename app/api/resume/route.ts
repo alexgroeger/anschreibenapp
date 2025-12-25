@@ -47,6 +47,13 @@ export async function POST(request: NextRequest) {
         .prepare('UPDATE resume SET content = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
         .run(content, (existing as { id: number }).id);
       
+      // Ensure all writes are flushed before syncing
+      try {
+        db.pragma('wal_checkpoint(TRUNCATE)');
+      } catch (error) {
+        console.warn('Could not checkpoint WAL:', error);
+      }
+      
       // Sync to cloud storage after write
       await syncDatabaseAfterWrite();
       
@@ -59,6 +66,13 @@ export async function POST(request: NextRequest) {
       const result = db
         .prepare('INSERT INTO resume (content) VALUES (?)')
         .run(content);
+      
+      // Ensure all writes are flushed before syncing
+      try {
+        db.pragma('wal_checkpoint(TRUNCATE)');
+      } catch (error) {
+        console.warn('Could not checkpoint WAL:', error);
+      }
       
       // Sync to cloud storage after write
       await syncDatabaseAfterWrite();
