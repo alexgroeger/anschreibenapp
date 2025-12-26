@@ -215,6 +215,16 @@ export function DashboardOverview() {
       await loadData()
     }
     syncAndLoad()
+
+    // Listen for status changes to refresh dashboard
+    const handleStatusChange = () => {
+      loadData()
+    }
+    window.addEventListener('applicationStatusChanged', handleStatusChange)
+
+    return () => {
+      window.removeEventListener('applicationStatusChanged', handleStatusChange)
+    }
   }, [loadData])
 
   const handleApplicationClick = (id: number) => {

@@ -217,6 +217,11 @@ export function ApplicationDetail() {
       if (response.ok) {
         setStatus(statusToUpdate)
         
+        // Dispatch event to notify dashboard of status change
+        window.dispatchEvent(new CustomEvent('applicationStatusChanged', {
+          detail: { applicationId: application.id, newStatus: statusToUpdate }
+        }))
+        
         // Check if status is "rueckmeldung_ausstehend" and sent_at is empty
         if (statusToUpdate === 'rueckmeldung_ausstehend' && !application.sent_at) {
           // Set today's date as default
