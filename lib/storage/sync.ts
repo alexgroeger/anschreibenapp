@@ -1,7 +1,8 @@
 import { Storage } from '@google-cloud/storage';
 import { readFileSync, writeFileSync, existsSync, statSync } from 'fs';
-import { join } from 'path';
+import { join, dirname, basename } from 'path';
 import { getDatabase } from '@/lib/database/client';
+import { getDatabasePath } from '@/lib/database/init';
 
 // Cloud Storage Configuration
 const GCS_BUCKET_NAME = process.env.GCS_BUCKET_NAME || '';
@@ -41,12 +42,16 @@ function getStorage(): Storage | null {
 export function getBucket(): any | null {
   const storage = getStorage();
   if (!storage) {
+    if (!GCS_BUCKET_NAME) {
+      console.warn('Cloud Storage not configured: GCS_BUCKET_NAME environment variable is not set');
+    }
     return null;
   }
 
   if (!bucketInstance) {
     try {
       bucketInstance = storage.bucket(GCS_BUCKET_NAME);
+      console.log(`Using Cloud Storage bucket: ${GCS_BUCKET_NAME}`);
     } catch (error) {
       console.error('Failed to get bucket:', error);
       return null;
@@ -68,7 +73,7 @@ export async function downloadDatabaseFromCloud(): Promise<boolean> {
   }
 
   try {
-    const dbPath = join(process.cwd(), 'data', DB_FILE_NAME);
+    const dbPath = getDatabasePath();
     const file = bucket.file(DB_FILE_NAME);
 
     // Check if file exists in Cloud Storage
@@ -113,7 +118,7 @@ export async function downloadDatabaseFromCloud(): Promise<boolean> {
     const backupFile = bucket.file(DB_BACKUP_FILE_NAME);
     const [backupExists] = await backupFile.exists();
     if (backupExists) {
-      const backupPath = join(process.cwd(), 'data', DB_BACKUP_FILE_NAME);
+      const backupPath = join(dirname(dbPath), DB_BACKUP_FILE_NAME);
       await backupFile.download({ destination: backupPath });
       console.log('Database backup downloaded from Cloud Storage');
     }
@@ -137,7 +142,7 @@ export async function uploadDatabaseToCloud(): Promise<boolean> {
   }
 
   try {
-    const dbPath = join(process.cwd(), 'data', DB_FILE_NAME);
+    const dbPath = getDatabasePath();
     
     // Check if local database exists
     if (!existsSync(dbPath)) {
@@ -208,7 +213,7 @@ export async function syncDatabaseOnStartup(): Promise<void> {
   }
 
   try {
-    const dbPath = join(process.cwd(), 'data', DB_FILE_NAME);
+    const dbPath = getDatabasePath();
     const localExists = existsSync(dbPath);
     const file = bucket.file(DB_FILE_NAME);
     const [cloudExists] = await file.exists();
@@ -270,6 +275,13 @@ export async function uploadFileToCloud(
   contentType?: string
 ): Promise<string | null> {
   const bucket = getBucket();
+  console.log('uploadFileToCloud called:', {
+    hasBucket: !!bucket,
+    fileName,
+    contentType,
+    fileType: file instanceof Buffer ? 'Buffer' : file instanceof File ? 'File' : typeof file,
+  });
+  
   if (!bucket) {
     // If Cloud Storage is not configured, save to local filesystem
     try {
@@ -280,54 +292,188 @@ export async function uploadFileToCloud(
       const fullPath = join(uploadsDir, fileName);
       const fileDir = path.dirname(fullPath);
       
+      console.log('Saving file locally:', {
+        uploadsDir,
+        fileName,
+        fullPath,
+        fileDir,
+        dirExists: existsSync(fileDir),
+      });
+      
       if (!existsSync(fileDir)) {
+        console.log('Creating directory:', fileDir);
         fs.mkdirSync(fileDir, { recursive: true });
+        console.log('Directory created successfully');
       }
       
       let buffer: Buffer;
       if (file instanceof Buffer) {
         buffer = file;
+        console.log('Using provided buffer, size:', buffer.length);
       } else if (file instanceof File) {
+        console.log('Converting File to buffer...');
         const arrayBuffer = await file.arrayBuffer();
         buffer = Buffer.from(arrayBuffer);
+        console.log('File converted to buffer, size:', buffer.length);
       } else {
-        throw new Error('Unsupported file type');
+        throw new Error(`Unsupported file type: ${typeof file}`);
       }
+      
+      console.log('Writing file to:', fullPath);
       writeFileSync(fullPath, buffer);
+      console.log(`File saved locally successfully: ${fullPath}`);
       
       return `local:${fullPath}`;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving file locally:', error);
-      return null;
+      const errorDetails = {
+        message: error.message,
+        stack: error.stack,
+        fileName,
+        fullPath: join(process.cwd(), 'data', 'uploads', fileName),
+        code: error.code,
+        errno: error.errno,
+        syscall: error.syscall,
+      };
+      console.error('Error details:', errorDetails);
+      // Throw error instead of returning null to get better error messages
+      throw new Error(`Failed to save file locally: ${error.message} (Path: ${errorDetails.fullPath}, Code: ${error.code || 'N/A'})`);
     }
   }
 
   try {
-    const filePath = `job-documents/${fileName}`;
+    // Use the fileName as-is if it already contains a path (e.g., "application-documents/123/file.pdf")
+    // Otherwise, prefix it with "job-documents/" for backward compatibility
+    const filePath = fileName.includes('/') ? fileName : `job-documents/${fileName}`;
+    console.log(`Uploading file to Cloud Storage with path: ${filePath}`);
     const bucketFile = bucket.file(filePath);
     
     let buffer: Buffer;
     if (file instanceof Buffer) {
       buffer = file;
     } else if (file instanceof File) {
-      const arrayBuffer = await file.arrayBuffer();
-      buffer = Buffer.from(arrayBuffer);
+      try {
+        const arrayBuffer = await file.arrayBuffer();
+        buffer = Buffer.from(arrayBuffer);
+        console.log(`File converted to buffer, size: ${buffer.length} bytes`);
+      } catch (bufferError: any) {
+        console.error('Error converting file to buffer:', bufferError);
+        throw new Error(`Failed to convert file to buffer: ${bufferError.message}`);
+      }
     } else {
-      throw new Error('Unsupported file type');
+      console.error('Unsupported file type:', typeof file, file);
+      throw new Error(`Unsupported file type: ${typeof file}`);
     }
     
-    await bucketFile.save(buffer, {
-      metadata: {
-        contentType: contentType || 'application/octet-stream',
-        cacheControl: 'public, max-age=31536000',
-      },
-    });
+    try {
+      await bucketFile.save(buffer, {
+        metadata: {
+          contentType: contentType || 'application/octet-stream',
+          cacheControl: 'public, max-age=31536000',
+        },
+      });
+      console.log(`File uploaded successfully to Cloud Storage: ${filePath}`);
+      return filePath;
+    } catch (saveError: any) {
+      console.error('Error saving file to Cloud Storage bucket:', saveError);
+      console.error('Error details:', {
+        message: saveError.message,
+        code: saveError.code,
+        stack: saveError.stack,
+      });
+      
+      // Check if this is a credentials error - if so, fall back to local filesystem
+      const isCredentialsError = 
+        saveError.message?.includes('Could not load the default credentials') ||
+        saveError.message?.includes('Could not load default credentials') ||
+        saveError.message?.includes('authentication') ||
+        saveError.code === 'ENOENT' ||
+        saveError.code === 401 ||
+        saveError.code === 403;
+      
+      if (isCredentialsError) {
+        console.warn('Cloud Storage credentials not available, falling back to local filesystem');
+        // Fall through to local filesystem save below
+        throw new Error('CREDENTIALS_ERROR'); // Special marker to trigger fallback
+      }
+      
+      throw saveError;
+    }
+  } catch (error: any) {
+    // If it's a credentials error, fall back to local filesystem
+    if (error.message === 'CREDENTIALS_ERROR' || 
+        error.message?.includes('Could not load the default credentials') ||
+        error.message?.includes('Could not load default credentials')) {
+      console.warn('Cloud Storage credentials not available, saving to local filesystem instead');
+      
+      try {
+        const fs = require('fs');
+        const path = require('path');
+        // Handle nested paths (e.g., "application-documents/123/file.pdf")
+        const uploadsDir = join(process.cwd(), 'data', 'uploads');
+        const fullPath = join(uploadsDir, fileName);
+        const fileDir = path.dirname(fullPath);
+        
+        console.log('Saving file locally (Cloud Storage fallback):', {
+          uploadsDir,
+          fileName,
+          fullPath,
+          fileDir,
+          dirExists: existsSync(fileDir),
+        });
+        
+        if (!existsSync(fileDir)) {
+          console.log('Creating directory:', fileDir);
+          fs.mkdirSync(fileDir, { recursive: true });
+          console.log('Directory created successfully');
+        }
+        
+        let buffer: Buffer;
+        if (file instanceof Buffer) {
+          buffer = file;
+          console.log('Using provided buffer, size:', buffer.length);
+        } else if (file instanceof File) {
+          console.log('Converting File to buffer...');
+          const arrayBuffer = await file.arrayBuffer();
+          buffer = Buffer.from(arrayBuffer);
+          console.log('File converted to buffer, size:', buffer.length);
+        } else {
+          throw new Error(`Unsupported file type: ${typeof file}`);
+        }
+        
+        console.log('Writing file to:', fullPath);
+        writeFileSync(fullPath, buffer);
+        console.log(`File saved locally successfully (Cloud Storage fallback): ${fullPath}`);
+        
+        return `local:${fullPath}`;
+      } catch (localError: any) {
+        console.error('Error saving file locally (fallback):', localError);
+        const errorDetails = {
+          message: localError.message,
+          stack: localError.stack,
+          fileName,
+          fullPath: join(process.cwd(), 'data', 'uploads', fileName),
+          code: localError.code,
+          errno: localError.errno,
+          syscall: localError.syscall,
+        };
+        console.error('Error details:', errorDetails);
+        throw new Error(`Failed to save file locally: ${localError.message} (Path: ${errorDetails.fullPath}, Code: ${localError.code || 'N/A'})`);
+      }
+    }
     
-    console.log(`File uploaded to Cloud Storage: ${filePath}`);
-    return filePath;
-  } catch (error) {
+    // For other errors, throw as before
     console.error('Error uploading file to Cloud Storage:', error);
-    return null;
+    const errorDetails = {
+      message: error.message,
+      stack: error.stack,
+      fileName,
+      contentType,
+      code: error.code,
+    };
+    console.error('Error details:', errorDetails);
+    // Throw error instead of returning null to get better error messages
+    throw new Error(`Failed to upload file to Cloud Storage: ${error.message} (Code: ${error.code || 'unknown'})`);
   }
 }
 
