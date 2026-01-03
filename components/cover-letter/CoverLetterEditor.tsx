@@ -1,7 +1,10 @@
 "use client"
 
-import { useState, useEffect, useCallback, useRef } from "react"
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet"
+import React, { useState, useEffect, useCallback, useRef } from "react"
+import { Sheet, SheetPortal, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet"
+import * as DialogPrimitive from "@radix-ui/react-dialog"
+import { cn } from "@/lib/utils"
+import { cva } from "class-variance-authority"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
@@ -15,7 +18,9 @@ import {
   Loader2,
   Check,
   X,
-  Sparkles
+  Sparkles,
+  ChevronDown,
+  ChevronUp
 } from "lucide-react"
 import { SuggestionList, type Suggestion } from "./SuggestionList"
 import { VersionHistory, type Version } from "./VersionHistory"
@@ -54,6 +59,69 @@ interface HistoryEntry {
   timestamp: number
 }
 
+// Custom SheetContent that allows overlay control
+const CustomSheetContent = React.forwardRef<
+  React.ElementRef<typeof DialogPrimitive.Content>,
+  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & { 
+    side?: "top" | "bottom" | "left" | "right"
+    isMinimized?: boolean
+  }
+>(({ side = "bottom", className, children, isMinimized = false, ...props }, ref) => {
+  const overlayRef = useRef<HTMLDivElement>(null)
+  
+  useEffect(() => {
+    if (overlayRef.current) {
+      if (isMinimized) {
+        overlayRef.current.style.pointerEvents = 'none'
+        overlayRef.current.style.backgroundColor = 'transparent'
+      } else {
+        overlayRef.current.style.pointerEvents = 'auto'
+        overlayRef.current.style.backgroundColor = 'rgba(0, 0, 0, 0.8)'
+      }
+    }
+  }, [isMinimized])
+  
+  const sheetVariants = cva(
+    "fixed z-50 gap-4 bg-background p-6 shadow-lg transition ease-in-out data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:duration-300 data-[state=open]:duration-500",
+    {
+      variants: {
+        side: {
+          top: "inset-x-0 top-0 border-b data-[state=closed]:slide-out-to-top data-[state=open]:slide-in-from-top",
+          bottom:
+            "inset-x-0 bottom-0 border-t data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom max-h-[85vh] overflow-hidden",
+          left: "inset-y-0 left-0 h-full w-3/4 border-r data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left max-w-sm",
+          right:
+            "inset-y-0 right-0 h-full w-3/4 border-l data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right max-w-sm",
+        },
+      },
+    }
+  )
+  
+  return (
+    <SheetPortal>
+      <DialogPrimitive.Overlay
+        ref={overlayRef}
+        className={cn(
+          "fixed inset-0 z-50 bg-black/80 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
+          isMinimized && "pointer-events-none bg-transparent"
+        )}
+      />
+      <DialogPrimitive.Content
+        ref={ref}
+        className={cn(sheetVariants({ side }), className)}
+        {...props}
+      >
+        {children}
+        <DialogPrimitive.Close className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-secondary">
+          <X className="h-4 w-4" />
+          <span className="sr-only">Close</span>
+        </DialogPrimitive.Close>
+      </DialogPrimitive.Content>
+    </SheetPortal>
+  )
+})
+CustomSheetContent.displayName = "CustomSheetContent"
+
 export function CoverLetterEditor({
   application,
   isOpen,
@@ -64,6 +132,7 @@ export function CoverLetterEditor({
   const [tone, setTone] = useState("professionell")
   const [focus, setFocus] = useState("skills")
   const [length, setLength] = useState("mittel")
+  const [formality, setFormality] = useState("formal")
   const [regenerating, setRegenerating] = useState(false)
   const [saving, setSaving] = useState(false)
   const [suggestions, setSuggestions] = useState<Suggestion[]>([])
@@ -73,6 +142,7 @@ export function CoverLetterEditor({
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false)
   const [pendingClose, setPendingClose] = useState(false)
   const [copySuccess, setCopySuccess] = useState(false)
+  const [isMinimized, setIsMinimized] = useState(false)
   
   // Diff-Modus State
   const [pendingCoverLetter, setPendingCoverLetter] = useState<string | null>(null)
@@ -105,6 +175,7 @@ export function CoverLetterEditor({
       loadSuggestions()
     }
   }, [isOpen, application.id])
+
 
   // Initialize content when application changes
   useEffect(() => {
@@ -213,6 +284,7 @@ export function CoverLetterEditor({
           tone,
           focus,
           textLength: length,
+          formality,
           extraction: application.extraction_data ? JSON.parse(application.extraction_data) : undefined,
         }),
       })
@@ -278,8 +350,9 @@ export function CoverLetterEditor({
       setVersionDescription("") // Reset description
       setPendingSave(false)
       
-      // Schließe Dialog, wenn pendingClose gesetzt ist
+      // Schließe Dialog komplett, wenn pendingClose gesetzt ist (nicht minimieren)
       if (pendingClose) {
+        setIsMinimized(false)
         onOpenChange(false)
         setPendingClose(false)
       }
@@ -462,12 +535,30 @@ export function CoverLetterEditor({
   }
 
   const handleClose = (open: boolean) => {
-    if (!open && hasUnsavedChanges) {
-      setPendingClose(true)
-      setShowUnsavedDialog(true)
+    if (!open) {
+      // Direct close (X button) - show save dialog if there are unsaved changes
+      if (hasUnsavedChanges) {
+        setPendingClose(true)
+        setShowUnsavedDialog(true)
+      } else {
+        // No unsaved changes - close completely
+        setIsMinimized(false)
+        onOpenChange(false)
+      }
     } else {
       onOpenChange(open)
     }
+  }
+  
+  const handleMinimize = () => {
+    // Minimize - just close the sheet and show minimized bar
+    setIsMinimized(true)
+    onOpenChange(false)
+  }
+  
+  const handleRestore = () => {
+    setIsMinimized(false)
+    onOpenChange(true)
   }
 
   const handleUnsavedDialogAction = async (action: 'save' | 'discard' | 'cancel') => {
@@ -478,10 +569,15 @@ export function CoverLetterEditor({
       setShowDescriptionDialog(true)
     } else if (action === 'discard') {
       if (pendingClose) {
+        // Close completely (not minimized)
+        setIsMinimized(false)
         onOpenChange(false)
         setPendingClose(false)
       }
       setHasUnsavedChanges(false)
+    } else if (action === 'cancel') {
+      // Cancel - keep editor open
+      setPendingClose(false)
     }
     setShowUnsavedDialog(false)
   }
@@ -582,15 +678,57 @@ export function CoverLetterEditor({
 
   return (
     <>
+      {/* Minimized bar - shown when minimized and sheet is closed */}
+      {isMinimized && !isOpen && (
+        <div className="fixed bottom-0 left-0 right-0 h-[60px] bg-background border-t shadow-lg z-50 flex items-center justify-center px-4">
+          <div className="absolute left-4 flex items-center gap-2">
+            <h3 className="text-sm font-semibold">Anschreiben Editor</h3>
+            {hasUnsavedChanges && (
+              <span className="text-xs text-muted-foreground">• Ungespeicherte Änderungen</span>
+            )}
+          </div>
+          <Button
+            onClick={handleRestore}
+            variant="ghost"
+            size="sm"
+            className="h-8"
+          >
+            <ChevronUp className="h-4 w-4 mr-2" />
+            Öffnen
+          </Button>
+        </div>
+      )}
+      
       <Sheet open={isOpen} onOpenChange={handleClose}>
-        <SheetContent side="bottom" className="h-[95vh] flex flex-col overflow-hidden">
+        <CustomSheetContent 
+          side="bottom" 
+          isMinimized={false}
+          className="h-[98vh] flex flex-col overflow-hidden transition-all duration-300"
+        >
           <SheetHeader className="sr-only">
             <SheetTitle>Anschreiben Editor</SheetTitle>
             <SheetDescription>
               Bearbeiten Sie Ihr Anschreiben mit Hilfe des KI-Assistenten
             </SheetDescription>
           </SheetHeader>
-          <div className="flex-1 overflow-hidden grid grid-cols-3 gap-4">
+          
+          {/* Full editor view */}
+          <>
+            {/* Minimize Button - centered at top */}
+            <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-10">
+              <Button
+                onClick={handleMinimize}
+                variant="ghost"
+                size="sm"
+                className="h-8"
+                title="Minimieren"
+              >
+                <ChevronDown className="h-4 w-4 mr-2" />
+                Minimieren
+              </Button>
+            </div>
+              
+              <div className="flex-1 overflow-hidden grid grid-cols-3 gap-4">
             {/* Main Editor Area - 70% */}
             <div className="col-span-2 flex flex-col space-y-3 min-h-0 overflow-hidden">
               {/* Header */}
@@ -599,7 +737,21 @@ export function CoverLetterEditor({
               </div>
               {/* Toolbar */}
               <div className="flex items-end gap-1.5 flex-shrink-0">
-                <div className="flex-1 grid grid-cols-3 gap-3">
+                <div className="flex-1 grid grid-cols-4 gap-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="formality">Formalität</Label>
+                    <Select value={formality} onValueChange={setFormality}>
+                      <SelectTrigger id="formality" className="h-9">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="sehr_formal">Sehr formal</SelectItem>
+                        <SelectItem value="formal">Formal</SelectItem>
+                        <SelectItem value="modern">Modern</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
                   <div className="space-y-2">
                     <Label htmlFor="tone">Tonalität</Label>
                     <Select value={tone} onValueChange={setTone}>
@@ -819,7 +971,8 @@ export function CoverLetterEditor({
               </div>
             </div>
           </div>
-        </SheetContent>
+          </>
+        </CustomSheetContent>
       </Sheet>
 
       {/* Unsaved Changes Dialog */}

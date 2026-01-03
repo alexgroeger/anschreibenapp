@@ -50,13 +50,7 @@ export function SuggestionList({
   }
 
   if (suggestions.length === 0) {
-    return (
-      <Card>
-        <CardContent className="py-8 text-center text-muted-foreground">
-          <p>Noch keine Vorschläge vorhanden</p>
-        </CardContent>
-      </Card>
-    )
+    return null
   }
 
   return (
@@ -190,4 +184,5 @@ export function SuggestionList({
     </div>
   )
 }
+
 
