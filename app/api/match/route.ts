@@ -52,17 +52,42 @@ export async function POST(request: NextRequest) {
     let scoreExplanation: string | null = null;
     let matchResultText = text;
 
-    // Try to extract JSON score from the beginning of the response
-    const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/);
+    // Try multiple patterns to extract JSON score
+    // Pattern 1: JSON in code block with ```json
+    let jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/);
+    
+    // Pattern 2: JSON in code block with ```
+    if (!jsonMatch) {
+      jsonMatch = text.match(/```\s*([\s\S]*?)\s*```/);
+    }
+    
+    // Pattern 3: Raw JSON object at the beginning
+    if (!jsonMatch) {
+      const rawJsonMatch = text.match(/^\s*\{[\s\S]*?"score"[\s\S]*?\}\s*/);
+      if (rawJsonMatch) {
+        jsonMatch = [rawJsonMatch[0], rawJsonMatch[0]];
+      }
+    }
+
     if (jsonMatch) {
       try {
-        const scoreData = JSON.parse(jsonMatch[1]);
+        // Clean the JSON string - remove markdown code block markers if present
+        let jsonString = jsonMatch[1] || jsonMatch[0];
+        jsonString = jsonString.replace(/^```json\s*/i, '').replace(/^```\s*/, '').replace(/\s*```$/, '').trim();
+        
+        const scoreData = JSON.parse(jsonString);
         matchScore = scoreData.score || null;
         scoreExplanation = scoreData.score_explanation || null;
-        // Remove the JSON block from the text
-        matchResultText = text.replace(/```json\s*[\s\S]*?\s*```\s*/g, '').trim();
+        
+        // Remove the JSON block from the text - try multiple patterns
+        matchResultText = text
+          .replace(/```json\s*[\s\S]*?\s*```\s*/gi, '') // Remove ```json ... ```
+          .replace(/```\s*\{[\s\S]*?"score"[\s\S]*?\}\s*```\s*/gi, '') // Remove ``` {...} ```
+          .replace(/^\s*\{[\s\S]*?"score"[\s\S]*?\}\s*/m, '') // Remove raw JSON at start
+          .trim();
       } catch (error) {
         console.error('Error parsing score JSON:', error);
+        console.error('JSON string that failed:', jsonMatch[1] || jsonMatch[0]);
       }
     }
 

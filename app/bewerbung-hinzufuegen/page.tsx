@@ -382,13 +382,11 @@ export default function BewerbungHinzufuegenPage() {
                           : undefined
                       }
                     >
-                      Passung: {
-                        matchScore === 'nicht_passend' ? 'Nicht passend' :
+                      Passung: {matchScore === 'nicht_passend' ? 'Nicht passend' :
                         matchScore === 'mittel' ? 'Mittel' :
                         matchScore === 'gut' ? 'Gut' :
                         matchScore === 'sehr_gut' ? 'Sehr gut' :
-                        matchScore
-                      }
+                        matchScore}
                     </Badge>
                   )}
                 </div>

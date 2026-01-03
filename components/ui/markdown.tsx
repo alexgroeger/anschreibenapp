@@ -9,6 +9,9 @@ interface MarkdownProps {
 }
 
 export function Markdown({ content, className = "" }: MarkdownProps) {
+  // Clean content - remove any leading/trailing whitespace and normalize line breaks
+  const cleanedContent = content?.trim().replace(/\r\n/g, '\n') || '';
+  
   return (
     <div className={`prose prose-sm max-w-none dark:prose-invert ${className}`}>
       <ReactMarkdown
@@ -26,17 +29,17 @@ export function Markdown({ content, className = "" }: MarkdownProps) {
           ),
           // Customize paragraph
           p: ({ node, ...props }) => (
-            <p className="mb-4 leading-relaxed" {...props} />
+            <p className="mb-3 leading-relaxed text-foreground" {...props} />
           ),
           // Customize lists
           ul: ({ node, ...props }) => (
-            <ul className="list-disc list-inside mb-4 space-y-1" {...props} />
+            <ul className="list-disc list-outside mb-4 ml-6 space-y-2" {...props} />
           ),
           ol: ({ node, ...props }) => (
-            <ol className="list-decimal list-inside mb-4 space-y-1" {...props} />
+            <ol className="list-decimal list-outside mb-4 ml-6 space-y-2" {...props} />
           ),
           li: ({ node, ...props }) => (
-            <li className="ml-4" {...props} />
+            <li className="pl-2" {...props} />
           ),
           // Customize code blocks
           code: ({ node, className, children, ...props }: any) => {
@@ -86,9 +89,10 @@ export function Markdown({ content, className = "" }: MarkdownProps) {
           ),
         }}
       >
-        {content}
+        {cleanedContent}
       </ReactMarkdown>
     </div>
   )
 }
+
 
