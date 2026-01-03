@@ -8,6 +8,21 @@ import { uploadFileToCloud } from '@/lib/storage/sync';
 // Force Node.js runtime for file parsing (pdfjs-dist and mammoth require Node.js)
 export const runtime = 'nodejs';
 
+/**
+ * Helper function to check if an object is a File-like object
+ * Works in both browser and Node.js environments
+ */
+function isFileLike(obj: any): boolean {
+  return (
+    obj &&
+    typeof obj === 'object' &&
+    typeof obj.arrayBuffer === 'function' &&
+    typeof obj.name === 'string' &&
+    typeof obj.size === 'number' &&
+    typeof obj.type === 'string'
+  );
+}
+
 export async function POST(request: NextRequest) {
   try {
     const contentType = request.headers.get('content-type') || '';
@@ -30,7 +45,7 @@ export async function POST(request: NextRequest) {
         );
       }
       
-      const file = formData.get('file') as File;
+      const file = formData.get('file') as File | null;
       
       if (!file) {
         return NextResponse.json(
@@ -39,11 +54,25 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      uploadedFile = file;
+      // Validate that it's a File-like object
+      if (!isFileLike(file)) {
+        console.error('File is not a File-like object:', typeof file, file);
+        return NextResponse.json(
+          { error: 'Invalid file object' },
+          { status: 400 }
+        );
+      }
+
+      uploadedFile = file as File;
+
+      // Type-safe access to file properties (after isFileLike check)
+      const fileObj = file as any;
+      const fileName = fileObj.name;
+      const fileType = fileObj.type;
 
       try {
         // Use the centralized file parser
-        jobDescription = await parseFile(file);
+        jobDescription = await parseFile(file, fileName);
         
         if (!jobDescription || jobDescription.trim().length === 0) {
           return NextResponse.json(
@@ -54,15 +83,15 @@ export async function POST(request: NextRequest) {
         
         // Save the file to Cloud Storage or local filesystem
         const timestamp = Date.now();
-        const sanitizedFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
-        const fileName = `${timestamp}_${sanitizedFileName}`;
-        const filePath = await uploadFileToCloud(file, fileName, file.type);
+        const sanitizedFileName = fileName.replace(/[^a-zA-Z0-9.-]/g, '_');
+        const uniqueFileName = `${timestamp}_${sanitizedFileName}`;
+        const filePath = await uploadFileToCloud(file, uniqueFileName, fileType);
         
         if (filePath) {
           documentInfo = {
-            filename: file.name,
+            filename: fileName,
             path: filePath,
-            type: file.type || 'application/octet-stream',
+            type: fileType || 'application/octet-stream',
           };
         }
       } catch (parseError: any) {

@@ -24,11 +24,73 @@ function getStorage(): Storage | null {
   if (!storageInstance) {
     try {
       // Cloud Storage will use Application Default Credentials (ADC)
-      // In Cloud Run, this is automatically configured
+      // In Cloud Run, this is automatically configured via the service account
       // For local development, use: gcloud auth application-default login
+      // Or set GOOGLE_APPLICATION_CREDENTIALS to a service account key file
+      
+      // Check if we're running in Cloud Run
+      const isCloudRun = !!process.env.K_SERVICE;
+      const credentialsEnv = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+      
+      if (isCloudRun) {
+        console.log('Cloud Storage: Running in Cloud Run - using service account for authentication');
+        console.log(`Cloud Storage: Service name: ${process.env.K_SERVICE || 'unknown'}`);
+        
+        // In Cloud Run, use the service account attached to the service
+        // GOOGLE_APPLICATION_CREDENTIALS should not be set (we use the service account)
+        if (credentialsEnv) {
+          console.warn('Cloud Storage: GOOGLE_APPLICATION_CREDENTIALS is set in Cloud Run - this may cause issues');
+          console.warn('Cloud Storage: Consider removing it and using the service account instead');
+        }
+      } else {
+        // Local development
+        if (credentialsEnv) {
+          // Check if it's a JSON string (starts with {) or a file path
+          if (credentialsEnv.trim().startsWith('{')) {
+            console.log('Cloud Storage: Running locally - using Service Account Key from JSON string');
+            try {
+              const credentials = JSON.parse(credentialsEnv);
+              storageInstance = new Storage({
+                credentials: credentials,
+              });
+              console.log('Cloud Storage: Client initialized with JSON credentials');
+              return storageInstance;
+            } catch (parseError: any) {
+              console.error('Cloud Storage: Failed to parse JSON credentials:', parseError);
+              throw new Error(`Invalid JSON credentials: ${parseError.message}`);
+            }
+          } else {
+            console.log(`Cloud Storage: Running locally - using Service Account Key from file: ${credentialsEnv}`);
+          }
+        } else {
+          console.log('Cloud Storage: Running locally - using Application Default Credentials (ADC)');
+          console.log('Cloud Storage: Set GOOGLE_APPLICATION_CREDENTIALS for Service Account Key, or run: gcloud auth application-default login');
+        }
+      }
+      
+      // Configure Storage client
+      // In Cloud Run: uses the service account attached to the service automatically
+      // In local dev: uses GOOGLE_APPLICATION_CREDENTIALS if set, otherwise ADC
       storageInstance = new Storage();
-    } catch (error) {
+      
+      console.log('Cloud Storage: Client initialized successfully');
+    } catch (error: any) {
       console.error('Failed to initialize Cloud Storage:', error);
+      console.error('Error details:', {
+        message: error.message,
+        code: error.code,
+        stack: error.stack,
+      });
+      
+      if (process.env.K_SERVICE) {
+        console.error('Cloud Run detected - ensure service account has storage.objectAdmin role');
+        console.error('Run: gcloud projects add-iam-policy-binding PROJECT_ID \\');
+        console.error('  --member="serviceAccount:PROJECT_NUMBER-compute@developer.gserviceaccount.com" \\');
+        console.error('  --role="roles/storage.objectAdmin"');
+      } else {
+        console.error('Local development - run: gcloud auth application-default login');
+      }
+      
       return null;
     }
   }
@@ -51,9 +113,28 @@ export function getBucket(): any | null {
   if (!bucketInstance) {
     try {
       bucketInstance = storage.bucket(GCS_BUCKET_NAME);
-      console.log(`Using Cloud Storage bucket: ${GCS_BUCKET_NAME}`);
-    } catch (error) {
+      console.log(`Cloud Storage: Using bucket: ${GCS_BUCKET_NAME}`);
+      
+      // Try to verify bucket access (non-blocking)
+      bucketInstance.exists()
+        .then(([exists]: [boolean]) => {
+          if (exists) {
+            console.log(`Cloud Storage: Bucket verified and accessible: ${GCS_BUCKET_NAME}`);
+          } else {
+            console.warn(`Cloud Storage: Bucket does not exist: ${GCS_BUCKET_NAME}`);
+          }
+        })
+        .catch((error: any) => {
+          console.warn(`Cloud Storage: Could not verify bucket access: ${error.message}`);
+          console.warn('This might indicate missing permissions. Check service account IAM roles.');
+        });
+    } catch (error: any) {
       console.error('Failed to get bucket:', error);
+      console.error('Error details:', {
+        message: error.message,
+        code: error.code,
+        bucketName: GCS_BUCKET_NAME,
+      });
       return null;
     }
   }
@@ -266,6 +347,22 @@ export function isCloudStorageConfigured(): boolean {
 }
 
 /**
+ * Helper function to check if an object is a File-like object
+ * Works in both browser and Node.js environments
+ */
+function isFileLike(obj: any): boolean {
+  // Check for File-like properties (works in Node.js where File is not available)
+  return (
+    obj &&
+    typeof obj === 'object' &&
+    typeof obj.arrayBuffer === 'function' &&
+    typeof obj.name === 'string' &&
+    typeof obj.size === 'number' &&
+    typeof obj.type === 'string'
+  );
+}
+
+/**
  * Upload a file to Cloud Storage
  * Returns the path in Cloud Storage if successful, null otherwise
  */
@@ -275,11 +372,12 @@ export async function uploadFileToCloud(
   contentType?: string
 ): Promise<string | null> {
   const bucket = getBucket();
+  const fileType = file instanceof Buffer ? 'Buffer' : isFileLike(file) ? 'File' : typeof file;
   console.log('uploadFileToCloud called:', {
     hasBucket: !!bucket,
     fileName,
     contentType,
-    fileType: file instanceof Buffer ? 'Buffer' : file instanceof File ? 'File' : typeof file,
+    fileType,
   });
   
   if (!bucket) {
@@ -310,9 +408,9 @@ export async function uploadFileToCloud(
       if (file instanceof Buffer) {
         buffer = file;
         console.log('Using provided buffer, size:', buffer.length);
-      } else if (file instanceof File) {
+      } else if (isFileLike(file)) {
         console.log('Converting File to buffer...');
-        const arrayBuffer = await file.arrayBuffer();
+        const arrayBuffer = await (file as any).arrayBuffer();
         buffer = Buffer.from(arrayBuffer);
         console.log('File converted to buffer, size:', buffer.length);
       } else {
@@ -351,9 +449,9 @@ export async function uploadFileToCloud(
     let buffer: Buffer;
     if (file instanceof Buffer) {
       buffer = file;
-    } else if (file instanceof File) {
+    } else if (isFileLike(file)) {
       try {
-        const arrayBuffer = await file.arrayBuffer();
+        const arrayBuffer = await (file as any).arrayBuffer();
         buffer = Buffer.from(arrayBuffer);
         console.log(`File converted to buffer, size: ${buffer.length} bytes`);
       } catch (bufferError: any) {
@@ -432,9 +530,9 @@ export async function uploadFileToCloud(
         if (file instanceof Buffer) {
           buffer = file;
           console.log('Using provided buffer, size:', buffer.length);
-        } else if (file instanceof File) {
+        } else if (isFileLike(file)) {
           console.log('Converting File to buffer...');
-          const arrayBuffer = await file.arrayBuffer();
+          const arrayBuffer = await (file as any).arrayBuffer();
           buffer = Buffer.from(arrayBuffer);
           console.log('File converted to buffer, size:', buffer.length);
         } else {

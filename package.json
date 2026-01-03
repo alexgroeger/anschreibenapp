@@ -11,6 +11,7 @@
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed",
     "test:smoke": "playwright test tests/smoke",
+    "deploy": "./scripts/deploy.sh",
     "pipeline": "./scripts/pipeline.sh",
     "pipeline:test": "./scripts/pipeline.sh test",
     "pipeline:trigger": "./scripts/pipeline.sh trigger",

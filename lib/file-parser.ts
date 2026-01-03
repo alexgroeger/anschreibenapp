@@ -84,10 +84,53 @@ const getMammoth = () => {
 };
 
 /**
+ * Helper function to get array buffer from File or Buffer
+ */
+async function getArrayBuffer(input: File | Buffer | ArrayBuffer): Promise<ArrayBuffer> {
+  if (input instanceof ArrayBuffer) {
+    return input;
+  }
+  if (input instanceof Buffer) {
+    // Convert Buffer to ArrayBuffer by creating a new ArrayBuffer
+    const uint8Array = new Uint8Array(input);
+    return uint8Array.buffer;
+  }
+  // File object
+  if (typeof (input as any).arrayBuffer === 'function') {
+    return await (input as any).arrayBuffer();
+  }
+  throw new Error('Unsupported input type for file parsing');
+}
+
+/**
+ * Helper function to check if an object is a File-like object
+ */
+function isFileLike(obj: any): boolean {
+  return (
+    obj &&
+    typeof obj === 'object' &&
+    typeof obj.arrayBuffer === 'function' &&
+    typeof obj.name === 'string' &&
+    typeof obj.size === 'number' &&
+    typeof obj.type === 'string'
+  );
+}
+
+/**
+ * Helper function to get file name from File or use provided name
+ */
+function getFileName(input: File | Buffer | ArrayBuffer, defaultName: string = 'file'): string {
+  if (isFileLike(input)) {
+    return (input as any).name;
+  }
+  return defaultName;
+}
+
+/**
  * Parse a PDF file and extract text content using pdfjs-dist
  */
-export async function parsePDF(file: File): Promise<string> {
-  const arrayBuffer = await file.arrayBuffer();
+export async function parsePDF(file: File | Buffer | ArrayBuffer, fileName?: string): Promise<string> {
+  const arrayBuffer = await getArrayBuffer(file);
   const uint8Array = new Uint8Array(arrayBuffer);
   
   try {
@@ -157,15 +200,20 @@ export async function parsePDF(file: File): Promise<string> {
 /**
  * Parse a text file and extract content
  */
-export async function parseTXT(file: File): Promise<string> {
-  return await file.text();
+export async function parseTXT(file: File | Buffer | ArrayBuffer): Promise<string> {
+  if (file instanceof Buffer) {
+    return file.toString('utf-8');
+  }
+  const arrayBuffer = await getArrayBuffer(file);
+  const decoder = new TextDecoder('utf-8');
+  return decoder.decode(arrayBuffer);
 }
 
 /**
  * Parse a DOCX file and extract text content
  */
-export async function parseDOCX(file: File): Promise<string> {
-  const arrayBuffer = await file.arrayBuffer();
+export async function parseDOCX(file: File | Buffer | ArrayBuffer): Promise<string> {
+  const arrayBuffer = await getArrayBuffer(file);
   
   try {
     const mammoth = getMammoth();
@@ -184,14 +232,25 @@ export async function parseDOCX(file: File): Promise<string> {
 
 /**
  * Automatically detect file type and parse accordingly
+ * Supports File, Buffer, or ArrayBuffer
  */
-export async function parseFile(file: File): Promise<string> {
-  const fileName = file.name.toLowerCase();
-  const fileExtension = fileName.split('.').pop()?.toLowerCase();
+export async function parseFile(file: File | Buffer | ArrayBuffer, fileName?: string): Promise<string> {
+  // Get file name
+  let actualFileName: string;
+  if (isFileLike(file)) {
+    actualFileName = (file as any).name;
+  } else if (fileName) {
+    actualFileName = fileName;
+  } else {
+    actualFileName = 'file';
+  }
+  
+  const fileNameLower = actualFileName.toLowerCase();
+  const fileExtension = fileNameLower.split('.').pop()?.toLowerCase();
 
   switch (fileExtension) {
     case 'pdf':
-      return await parsePDF(file);
+      return await parsePDF(file, actualFileName);
     case 'txt':
       return await parseTXT(file);
     case 'docx':
