@@ -13,7 +13,9 @@ Analysiere die Jobbeschreibung und extrahiere:
 9. **Befristung**: Art des Arbeitsvertrags (z.B. "unbefristet", "befristet auf 2 Jahre", "Projektbezogen", "Vollzeit unbefristet"). Format: string oder null.
 10. **Arbeitsplatz**: Arbeitsort und Arbeitsmodell (z.B. "Remote", "Hybrid", "Vor Ort", "Homeoffice möglich", "Standort"). Format: string oder null.
 11. **Möglicher Start**: Startdatum oder Startzeitraum (z.B. "ab sofort", "zum nächstmöglichen Zeitpunkt", "01.03.2025", "Q2 2025"). Format: string oder null (kann auch als ISO 8601 Datum YYYY-MM-DD sein, wenn ein konkretes Datum gefunden wird).
-12. **Kontaktpersonen**: Extrahiere ALLE Kontaktinformationen (Name, E-Mail, Telefon, Position) falls vorhanden. 
+12. **Anstellungsverhältnis**: Art des Anstellungsverhältnisses (z.B. "Vollzeit", "Teilzeit", "Vollzeit/Teilzeit", "Minijob", "Werkstudent", "Praktikum"). Format: string oder null.
+13. **Urlaubstage**: Anzahl der Urlaubstage (z.B. "30 Tage", "30", "25-30 Tage"). Format: string oder null (kann eine Zahl oder ein Bereich sein).
+14. **Kontaktpersonen**: Extrahiere ALLE Kontaktinformationen (Name, E-Mail, Telefon, Position) falls vorhanden. 
 
    Suche aktiv nach:
    - Namen von Ansprechpartnern, Recruitern, HR-Mitarbeitern
@@ -43,6 +45,8 @@ Antworte NUR mit dem JSON-Objekt, ohne zusätzlichen Text:
   "contractType": "string oder null (Befristung, z.B. 'unbefristet', 'befristet auf 2 Jahre')",
   "workplace": "string oder null (Arbeitsplatz, z.B. 'Remote', 'Hybrid', 'Vor Ort Berlin')",
   "startDate": "string oder null (Möglicher Start, z.B. 'ab sofort', '01.03.2025' oder als YYYY-MM-DD wenn konkretes Datum)",
+  "employmentType": "string oder null (Anstellungsverhältnis, z.B. 'Vollzeit', 'Teilzeit', 'Vollzeit/Teilzeit')",
+  "vacationDays": "string oder null (Urlaubstage, z.B. '30 Tage', '30', '25-30 Tage')",
   "contacts": [
     {
       "name": "string (MUSS vorhanden sein, mindestens 'Unbekannt' wenn nur E-Mail/Telefon gefunden)",

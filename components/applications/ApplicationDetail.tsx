@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
 import { Markdown } from "@/components/ui/markdown"
 import { format } from "date-fns"
-import { Pencil, Save, X, Building2, Briefcase, Calendar, User, Mail, Phone, ExternalLink, Plus, Trash2, Euro, FileText, MapPin, Clock, FileEdit, Download, Eye, Upload } from "lucide-react"
+import { Pencil, Save, X, Building2, Briefcase, Calendar, User, Mail, Phone, ExternalLink, Plus, Trash2, Euro, FileText, MapPin, Clock, FileEdit, Download, Eye, Upload, CalendarDays } from "lucide-react"
 import { CoverLetterEditor } from "@/components/cover-letter/CoverLetterEditor"
 import { ReminderList } from "@/components/reminders/ReminderList"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -724,7 +724,7 @@ export function ApplicationDetail() {
                       )}
                       
                       {/* Metadata fields */}
-                      {(extractionData.deadline || extractionData.salary || extractionData.contractType || extractionData.workplace || extractionData.startDate) && (
+                      {(extractionData.deadline || extractionData.salary || extractionData.contractType || extractionData.workplace || extractionData.startDate || extractionData.employmentType || extractionData.vacationDays) && (
                         <div className="pt-4 border-t">
                           <label className="text-sm font-semibold mb-3 block">Weitere Informationen</label>
                           <div className="space-y-2">
@@ -761,6 +761,20 @@ export function ApplicationDetail() {
                                 <Clock className="h-4 w-4 text-muted-foreground" />
                                 <span className="text-muted-foreground">Möglicher Start:</span>
                                 <span className="font-medium">{extractionData.startDate}</span>
+                              </div>
+                            )}
+                            {extractionData.employmentType && (
+                              <div className="flex items-center gap-2 text-sm">
+                                <Briefcase className="h-4 w-4 text-muted-foreground" />
+                                <span className="text-muted-foreground">Anstellungsverhältnis:</span>
+                                <span className="font-medium">{extractionData.employmentType}</span>
+                              </div>
+                            )}
+                            {extractionData.vacationDays && (
+                              <div className="flex items-center gap-2 text-sm">
+                                <CalendarDays className="h-4 w-4 text-muted-foreground" />
+                                <span className="text-muted-foreground">Urlaubstage:</span>
+                                <span className="font-medium">{extractionData.vacationDays}</span>
                               </div>
                             )}
                           </div>
@@ -1277,7 +1291,7 @@ export function ApplicationDetail() {
           )}
 
           {/* Extraction Metadata - Important Information */}
-          {extractionData && (extractionData.deadline || extractionData.salary || extractionData.contractType || extractionData.workplace || extractionData.startDate) && (
+          {extractionData && (extractionData.deadline || extractionData.salary || extractionData.contractType || extractionData.workplace || extractionData.startDate || extractionData.employmentType || extractionData.vacationDays) && (
             <div className="space-y-2">
               <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
                 Weitere Informationen
@@ -1325,6 +1339,24 @@ export function ApplicationDetail() {
                     <div className="flex-1 min-w-0">
                       <span className="text-muted-foreground">Möglicher Start:</span>
                       <span className="font-medium ml-1">{extractionData.startDate}</span>
+                    </div>
+                  </div>
+                )}
+                {extractionData.employmentType && (
+                  <div className="flex items-start gap-2 text-xs">
+                    <Briefcase className="h-3 w-3 text-muted-foreground mt-0.5 flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <span className="text-muted-foreground">Anstellungsverhältnis:</span>
+                      <span className="font-medium ml-1">{extractionData.employmentType}</span>
+                    </div>
+                  </div>
+                )}
+                {extractionData.vacationDays && (
+                  <div className="flex items-start gap-2 text-xs">
+                    <CalendarDays className="h-3 w-3 text-muted-foreground mt-0.5 flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <span className="text-muted-foreground">Urlaubstage:</span>
+                      <span className="font-medium ml-1">{extractionData.vacationDays}</span>
                     </div>
                   </div>
                 )}

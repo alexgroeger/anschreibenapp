@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
-import { Mail, Phone, Briefcase, User, Plus, X, Calendar, ArrowLeft, Euro, FileText, MapPin, Clock } from "lucide-react"
+import { Mail, Phone, Briefcase, User, Plus, X, Calendar, ArrowLeft, Euro, FileText, MapPin, Clock, CalendarDays } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 
 interface Contact {
@@ -29,6 +29,8 @@ interface ExtractionData {
   contractType?: string | null
   workplace?: string | null
   startDate?: string | null
+  employmentType?: string | null
+  vacationDays?: string | null
 }
 
 interface ExtractionDisplayProps {
@@ -476,6 +478,32 @@ export function ExtractionDisplay({ extraction, onProceed, onExtractionChange, o
                 placeholder="z.B. ab sofort, 01.03.2025"
               />
             </div>
+
+            {/* Employment Type */}
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold flex items-center gap-2">
+                <Briefcase className="h-4 w-4" />
+                Anstellungsverhältnis
+              </Label>
+              <Input
+                value={editedExtraction.employmentType || ""}
+                onChange={(e) => handleFieldChange('employmentType', e.target.value || null)}
+                placeholder="z.B. Vollzeit, Teilzeit, Vollzeit/Teilzeit"
+              />
+            </div>
+
+            {/* Vacation Days */}
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold flex items-center gap-2">
+                <CalendarDays className="h-4 w-4" />
+                Urlaubstage
+              </Label>
+              <Input
+                value={editedExtraction.vacationDays || ""}
+                onChange={(e) => handleFieldChange('vacationDays', e.target.value || null)}
+                placeholder="z.B. 30 Tage, 30, 25-30 Tage"
+              />
+            </div>
           </CardContent>
         </Card>
 
@@ -483,4 +511,5 @@ export function ExtractionDisplay({ extraction, onProceed, onExtractionChange, o
     </div>
   )
 }
+
 

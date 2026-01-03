@@ -240,6 +240,12 @@ export async function POST(request: NextRequest) {
     if (!extractionData.startDate) {
       extractionData.startDate = null;
     }
+    if (!extractionData.employmentType) {
+      extractionData.employmentType = null;
+    }
+    if (!extractionData.vacationDays) {
+      extractionData.vacationDays = null;
+    }
 
     // Include the job description in the response if it was from a file
     // This allows the client to use it for matching
