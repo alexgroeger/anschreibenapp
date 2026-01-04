@@ -10,6 +10,10 @@ if (!fs.existsSync(dataDir)) {
   fs.mkdirSync(dataDir, { recursive: true });
 }
 
+export function getDatabasePath(): string {
+  return dbPath;
+}
+
 export function initDatabase(): Database.Database {
   const db = new Database(dbPath);
   
