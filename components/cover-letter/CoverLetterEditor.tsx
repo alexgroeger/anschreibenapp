@@ -604,6 +604,69 @@ export function CoverLetterEditor({
     setOriginalCoverLetter("")
   }
 
+  // Handle revise request from Diff Overlay
+  const handleRevise = async (revisionInput: string, revisionBase: 'original' | 'pending') => {
+    try {
+      // Determine base text based on selection
+      const baseText = revisionBase === 'original' 
+        ? originalCoverLetter 
+        : (pendingCoverLetter || originalCoverLetter)
+      
+      if (!baseText) {
+        throw new Error('Kein Basis-Text verfügbar')
+      }
+
+      const response = await fetch('/api/cover-letter/modify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          coverLetter: baseText,
+          modificationRequest: revisionInput,
+          matchResult: application.match_result || '',
+          jobDescription: application.job_description || '',
+          extraction: application.extraction_data ? JSON.parse(application.extraction_data) : undefined,
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Fehler beim Überarbeiten des Anschreibens')
+      }
+
+      const data = await response.json()
+      const modifiedCoverLetter = data.modifiedCoverLetter
+
+      if (modifiedCoverLetter && modifiedCoverLetter.trim()) {
+        // Store the current pending version before updating (needed for diff comparison)
+        const previousPending = pendingCoverLetter
+        
+        // Update pending cover letter with new revision
+        setPendingCoverLetter(modifiedCoverLetter.trim())
+        
+        // Set the base for diff comparison:
+        // - If revising from 'pending', compare against the previous pending version
+        // - If revising from 'original', compare against the original cover letter
+        if (revisionBase === 'pending' && previousPending) {
+          // Compare new revision against previous pending version
+          setOriginalCoverLetter(previousPending)
+        } else {
+          // Compare against original (use existing originalCoverLetter if available, otherwise use content)
+          // originalCoverLetter should always be set when in diff mode, but fallback to content for safety
+          if (!originalCoverLetter) {
+            setOriginalCoverLetter(content)
+          }
+          // If originalCoverLetter is already set, keep it (no need to update)
+        }
+        setShowDiff(true)
+      } else {
+        throw new Error('Kein überarbeitetes Anschreiben erhalten')
+      }
+    } catch (error: any) {
+      alert(error.message || 'Fehler beim Überarbeiten des Anschreibens')
+      throw error // Re-throw so DiffOverlay can handle it
+    }
+  }
+
   // Handle modification request
   const handleModify = async () => {
     if (!modificationInput.trim() || isModifying) return
@@ -884,6 +947,7 @@ export function CoverLetterEditor({
                       modifiedText={pendingCoverLetter}
                       onAccept={handleAcceptChanges}
                       onReject={handleRejectChanges}
+                      onRevise={handleRevise}
                       textareaRef={textareaRef}
                     />
                   )}
