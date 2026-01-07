@@ -64,7 +64,7 @@ export async function PATCH(
     }
     
     const body = await request.json();
-    const { status, sent_at, company, position, cover_letter, match_result, match_score, deadline } = body;
+    const { status, sent_at, company, position, cover_letter, match_result, match_score, deadline, extraction_data } = body;
     
     const db = getDatabase();
     const updates: string[] = [];
@@ -101,6 +101,10 @@ export async function PATCH(
     if (deadline !== undefined) {
       updates.push('deadline = ?');
       values.push(deadline);
+    }
+    if (extraction_data !== undefined) {
+      updates.push('extraction_data = ?');
+      values.push(typeof extraction_data === 'string' ? extraction_data : JSON.stringify(extraction_data));
     }
     
     if (updates.length === 0) {

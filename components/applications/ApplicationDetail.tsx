@@ -143,6 +143,10 @@ export function ApplicationDetail() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
+  // Extraction data editing state
+  const [editingExtraction, setEditingExtraction] = useState(false)
+  const [editedExtractionData, setEditedExtractionData] = useState<any>(null)
+
   const loadApplication = useCallback(async () => {
     if (!params?.id) return
     
@@ -543,6 +547,50 @@ export function ApplicationDetail() {
     }
   }
 
+  const handleStartExtractionEdit = () => {
+    if (extractionData) {
+      setEditedExtractionData(JSON.parse(JSON.stringify(extractionData)))
+    }
+    setEditingExtraction(true)
+  }
+
+  const handleExtractionFieldChange = (field: string, value: any) => {
+    if (!editedExtractionData) return
+    setEditedExtractionData({ ...editedExtractionData, [field]: value })
+  }
+
+  const handleSaveExtraction = async () => {
+    if (!application || !editedExtractionData) return
+
+    setSaving(true)
+    try {
+      const response = await fetch(`/api/applications/${application.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ extraction_data: editedExtractionData }),
+      })
+
+      if (response.ok) {
+        setEditingExtraction(false)
+        setEditedExtractionData(null)
+        loadApplication()
+      } else {
+        alert('Fehler beim Speichern der Extraktionsdaten')
+      }
+    } catch (error) {
+      alert('Fehler beim Speichern der Extraktionsdaten')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleCancelExtractionEdit = () => {
+    setEditingExtraction(false)
+    setEditedExtractionData(null)
+  }
+
   const statusColors: Record<string, string> = {
     'gesendet': 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
     'in_bearbeitung': 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
@@ -669,114 +717,290 @@ export function ApplicationDetail() {
               {extractionData ? (
                 <Card>
                   <CardHeader>
-                    <div>
-                      <CardTitle>Extraktionsdaten</CardTitle>
-                      <CardDescription>
-                        Extrahierte Informationen aus der Stellenausschreibung
-                      </CardDescription>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <CardTitle>Extraktionsdaten</CardTitle>
+                        <CardDescription>
+                          Extrahierte Informationen aus der Stellenausschreibung
+                        </CardDescription>
+                      </div>
+                      {!editingExtraction ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleStartExtractionEdit}
+                          className="flex items-center gap-2"
+                        >
+                          <Pencil className="h-4 w-4" />
+                          Bearbeiten
+                        </Button>
+                      ) : (
+                        <div className="flex gap-2">
+                          <Button
+                            variant="default"
+                            size="sm"
+                            onClick={handleSaveExtraction}
+                            disabled={saving}
+                            className="flex items-center gap-2"
+                          >
+                            <Save className="h-4 w-4" />
+                            {saving ? 'Speichern...' : 'Speichern'}
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleCancelExtractionEdit}
+                            disabled={saving}
+                            className="flex items-center gap-2"
+                          >
+                            <X className="h-4 w-4" />
+                            Abbrechen
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-4">
-                      {extractionData.keyRequirements && (
-                        <div>
-                          <label className="text-sm font-semibold mb-2 block">Key Requirements</label>
+                      {/* Key Requirements */}
+                      <div>
+                        <label className="text-sm font-semibold mb-2 block">Key Requirements</label>
+                        {editingExtraction && editedExtractionData ? (
+                          <Textarea
+                            value={typeof editedExtractionData.keyRequirements === 'string' 
+                              ? editedExtractionData.keyRequirements 
+                              : (editedExtractionData.keyRequirements ? JSON.stringify(editedExtractionData.keyRequirements, null, 2) : '')}
+                            onChange={(e) => handleExtractionFieldChange('keyRequirements', e.target.value)}
+                            className="min-h-[120px] text-sm"
+                            placeholder="Key Requirements"
+                          />
+                        ) : (
                           <div className="bg-muted p-4 rounded-md max-h-[200px] overflow-y-auto text-sm whitespace-pre-wrap">
                             {typeof extractionData.keyRequirements === 'string' 
                               ? extractionData.keyRequirements 
                               : JSON.stringify(extractionData.keyRequirements, null, 2)}
                           </div>
-                        </div>
-                      )}
+                        )}
+                      </div>
                       
+                      {/* Hard and Soft Skills */}
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {extractionData.skills && (
-                          <div>
-                            <label className="text-sm font-semibold mb-2 block">Hard Skills</label>
+                        {/* Hard Skills */}
+                        <div>
+                          <label className="text-sm font-semibold mb-2 block">Hard Skills</label>
+                          {editingExtraction && editedExtractionData ? (
+                            <Textarea
+                              value={typeof editedExtractionData.skills === 'string' 
+                                ? editedExtractionData.skills 
+                                : (editedExtractionData.skills ? JSON.stringify(editedExtractionData.skills, null, 2) : '')}
+                              onChange={(e) => handleExtractionFieldChange('skills', e.target.value)}
+                              className="min-h-[150px] text-sm"
+                              placeholder="Hard Skills"
+                            />
+                          ) : (
                             <div className="bg-muted p-4 rounded-md max-h-[200px] overflow-y-auto text-sm whitespace-pre-wrap">
                               {typeof extractionData.skills === 'string' 
                                 ? extractionData.skills 
                                 : JSON.stringify(extractionData.skills, null, 2)}
                             </div>
-                          </div>
-                        )}
-                        {extractionData.softSkills && (
-                          <div>
-                            <label className="text-sm font-semibold mb-2 block">Soft Skills</label>
+                          )}
+                        </div>
+                        {/* Soft Skills */}
+                        <div>
+                          <label className="text-sm font-semibold mb-2 block">Soft Skills</label>
+                          {editingExtraction && editedExtractionData ? (
+                            <Textarea
+                              value={typeof editedExtractionData.softSkills === 'string' 
+                                ? editedExtractionData.softSkills 
+                                : (editedExtractionData.softSkills ? JSON.stringify(editedExtractionData.softSkills, null, 2) : '')}
+                              onChange={(e) => handleExtractionFieldChange('softSkills', e.target.value)}
+                              className="min-h-[150px] text-sm"
+                              placeholder="Soft Skills"
+                            />
+                          ) : (
                             <div className="bg-muted p-4 rounded-md max-h-[200px] overflow-y-auto text-sm whitespace-pre-wrap">
                               {typeof extractionData.softSkills === 'string' 
                                 ? extractionData.softSkills 
                                 : JSON.stringify(extractionData.softSkills, null, 2)}
                             </div>
-                          </div>
-                        )}
+                          )}
+                        </div>
                       </div>
 
-                      {extractionData.culture && (
-                        <div>
-                          <label className="text-sm font-semibold mb-2 block">Unternehmenskultur</label>
+                      {/* Culture */}
+                      <div>
+                        <label className="text-sm font-semibold mb-2 block">Unternehmenskultur</label>
+                        {editingExtraction && editedExtractionData ? (
+                          <Textarea
+                            value={typeof editedExtractionData.culture === 'string' 
+                              ? editedExtractionData.culture 
+                              : (editedExtractionData.culture ? JSON.stringify(editedExtractionData.culture, null, 2) : '')}
+                            onChange={(e) => handleExtractionFieldChange('culture', e.target.value)}
+                            className="min-h-[120px] text-sm"
+                            placeholder="Unternehmenskultur"
+                          />
+                        ) : (
                           <div className="bg-muted p-4 rounded-md max-h-[200px] overflow-y-auto text-sm whitespace-pre-wrap">
                             {typeof extractionData.culture === 'string' 
                               ? extractionData.culture 
                               : JSON.stringify(extractionData.culture, null, 2)}
                           </div>
-                        </div>
-                      )}
+                        )}
+                      </div>
                       
                       {/* Metadata fields */}
-                      {(extractionData.deadline || extractionData.salary || extractionData.contractType || extractionData.workplace || extractionData.startDate || extractionData.employmentType || extractionData.vacationDays) && (
+                      {(extractionData.deadline || extractionData.salary || extractionData.contractType || extractionData.workplace || extractionData.startDate || extractionData.employmentType || extractionData.vacationDays || 
+                        (editingExtraction && editedExtractionData && (editedExtractionData.deadline || editedExtractionData.salary || editedExtractionData.contractType || editedExtractionData.workplace || editedExtractionData.startDate || editedExtractionData.employmentType || editedExtractionData.vacationDays))) && (
                         <div className="pt-4 border-t">
                           <label className="text-sm font-semibold mb-3 block">Weitere Informationen</label>
-                          <div className="space-y-2">
-                            {extractionData.deadline && (
-                              <div className="flex items-center gap-2 text-sm">
-                                <Calendar className="h-4 w-4 text-muted-foreground" />
-                                <span className="text-muted-foreground">Bewerbungsfrist:</span>
-                                <span className="font-medium">{extractionData.deadline}</span>
-                              </div>
-                            )}
-                            {extractionData.salary && (
-                              <div className="flex items-center gap-2 text-sm">
-                                <Euro className="h-4 w-4 text-muted-foreground" />
-                                <span className="text-muted-foreground">Vergütung:</span>
-                                <span className="font-medium">{extractionData.salary}</span>
-                              </div>
-                            )}
-                            {extractionData.contractType && (
-                              <div className="flex items-center gap-2 text-sm">
-                                <FileText className="h-4 w-4 text-muted-foreground" />
-                                <span className="text-muted-foreground">Befristung:</span>
-                                <span className="font-medium">{extractionData.contractType}</span>
-                              </div>
-                            )}
-                            {extractionData.workplace && (
-                              <div className="flex items-center gap-2 text-sm">
-                                <MapPin className="h-4 w-4 text-muted-foreground" />
-                                <span className="text-muted-foreground">Arbeitsplatz:</span>
-                                <span className="font-medium">{extractionData.workplace}</span>
-                              </div>
-                            )}
-                            {extractionData.startDate && (
-                              <div className="flex items-center gap-2 text-sm">
-                                <Clock className="h-4 w-4 text-muted-foreground" />
-                                <span className="text-muted-foreground">Möglicher Start:</span>
-                                <span className="font-medium">{extractionData.startDate}</span>
-                              </div>
-                            )}
-                            {extractionData.employmentType && (
-                              <div className="flex items-center gap-2 text-sm">
-                                <Briefcase className="h-4 w-4 text-muted-foreground" />
-                                <span className="text-muted-foreground">Anstellungsverhältnis:</span>
-                                <span className="font-medium">{extractionData.employmentType}</span>
-                              </div>
-                            )}
-                            {extractionData.vacationDays && (
-                              <div className="flex items-center gap-2 text-sm">
-                                <CalendarDays className="h-4 w-4 text-muted-foreground" />
-                                <span className="text-muted-foreground">Urlaubstage:</span>
-                                <span className="font-medium">{extractionData.vacationDays}</span>
-                              </div>
-                            )}
+                          <div className="space-y-3">
+                            {/* Deadline */}
+                            <div>
+                              <label className="text-xs text-muted-foreground mb-1 block flex items-center gap-2">
+                                <Calendar className="h-3 w-3" />
+                                Bewerbungsfrist
+                              </label>
+                              {editingExtraction && editedExtractionData ? (
+                                <Input
+                                  value={editedExtractionData.deadline || ''}
+                                  onChange={(e) => handleExtractionFieldChange('deadline', e.target.value || null)}
+                                  placeholder="z.B. 31.12.2024"
+                                  className="text-sm"
+                                />
+                              ) : (
+                                extractionData.deadline && (
+                                  <div className="flex items-center gap-2 text-sm">
+                                    <span className="font-medium">{extractionData.deadline}</span>
+                                  </div>
+                                )
+                              )}
+                            </div>
+                            {/* Salary */}
+                            <div>
+                              <label className="text-xs text-muted-foreground mb-1 block flex items-center gap-2">
+                                <Euro className="h-3 w-3" />
+                                Vergütung
+                              </label>
+                              {editingExtraction && editedExtractionData ? (
+                                <Input
+                                  value={editedExtractionData.salary || ''}
+                                  onChange={(e) => handleExtractionFieldChange('salary', e.target.value || null)}
+                                  placeholder="z.B. 50.000€ - 70.000€"
+                                  className="text-sm"
+                                />
+                              ) : (
+                                extractionData.salary && (
+                                  <div className="flex items-center gap-2 text-sm">
+                                    <span className="font-medium">{extractionData.salary}</span>
+                                  </div>
+                                )
+                              )}
+                            </div>
+                            {/* Contract Type */}
+                            <div>
+                              <label className="text-xs text-muted-foreground mb-1 block flex items-center gap-2">
+                                <FileText className="h-3 w-3" />
+                                Befristung
+                              </label>
+                              {editingExtraction && editedExtractionData ? (
+                                <Input
+                                  value={editedExtractionData.contractType || ''}
+                                  onChange={(e) => handleExtractionFieldChange('contractType', e.target.value || null)}
+                                  placeholder="z.B. unbefristet"
+                                  className="text-sm"
+                                />
+                              ) : (
+                                extractionData.contractType && (
+                                  <div className="flex items-center gap-2 text-sm">
+                                    <span className="font-medium">{extractionData.contractType}</span>
+                                  </div>
+                                )
+                              )}
+                            </div>
+                            {/* Workplace */}
+                            <div>
+                              <label className="text-xs text-muted-foreground mb-1 block flex items-center gap-2">
+                                <MapPin className="h-3 w-3" />
+                                Arbeitsplatz
+                              </label>
+                              {editingExtraction && editedExtractionData ? (
+                                <Input
+                                  value={editedExtractionData.workplace || ''}
+                                  onChange={(e) => handleExtractionFieldChange('workplace', e.target.value || null)}
+                                  placeholder="z.B. Remote, Hybrid, Berlin"
+                                  className="text-sm"
+                                />
+                              ) : (
+                                extractionData.workplace && (
+                                  <div className="flex items-center gap-2 text-sm">
+                                    <span className="font-medium">{extractionData.workplace}</span>
+                                  </div>
+                                )
+                              )}
+                            </div>
+                            {/* Start Date */}
+                            <div>
+                              <label className="text-xs text-muted-foreground mb-1 block flex items-center gap-2">
+                                <Clock className="h-3 w-3" />
+                                Möglicher Start
+                              </label>
+                              {editingExtraction && editedExtractionData ? (
+                                <Input
+                                  value={editedExtractionData.startDate || ''}
+                                  onChange={(e) => handleExtractionFieldChange('startDate', e.target.value || null)}
+                                  placeholder="z.B. ab sofort, 01.03.2025"
+                                  className="text-sm"
+                                />
+                              ) : (
+                                extractionData.startDate && (
+                                  <div className="flex items-center gap-2 text-sm">
+                                    <span className="font-medium">{extractionData.startDate}</span>
+                                  </div>
+                                )
+                              )}
+                            </div>
+                            {/* Employment Type */}
+                            <div>
+                              <label className="text-xs text-muted-foreground mb-1 block flex items-center gap-2">
+                                <Briefcase className="h-3 w-3" />
+                                Anstellungsverhältnis
+                              </label>
+                              {editingExtraction && editedExtractionData ? (
+                                <Input
+                                  value={editedExtractionData.employmentType || ''}
+                                  onChange={(e) => handleExtractionFieldChange('employmentType', e.target.value || null)}
+                                  placeholder="z.B. Vollzeit, Teilzeit"
+                                  className="text-sm"
+                                />
+                              ) : (
+                                extractionData.employmentType && (
+                                  <div className="flex items-center gap-2 text-sm">
+                                    <span className="font-medium">{extractionData.employmentType}</span>
+                                  </div>
+                                )
+                              )}
+                            </div>
+                            {/* Vacation Days */}
+                            <div>
+                              <label className="text-xs text-muted-foreground mb-1 block flex items-center gap-2">
+                                <CalendarDays className="h-3 w-3" />
+                                Urlaubstage
+                              </label>
+                              {editingExtraction && editedExtractionData ? (
+                                <Input
+                                  value={editedExtractionData.vacationDays || ''}
+                                  onChange={(e) => handleExtractionFieldChange('vacationDays', e.target.value || null)}
+                                  placeholder="z.B. 30 Tage"
+                                  className="text-sm"
+                                />
+                              ) : (
+                                extractionData.vacationDays && (
+                                  <div className="flex items-center gap-2 text-sm">
+                                    <span className="font-medium">{extractionData.vacationDays}</span>
+                                  </div>
+                                )
+                              )}
+                            </div>
                           </div>
                         </div>
                       )}
