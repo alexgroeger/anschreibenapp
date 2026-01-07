@@ -37,7 +37,7 @@ const statusColors: Record<string, string> = {
   'in_bearbeitung': 'bg-yellow-100 text-yellow-800',
   'abgelehnt': 'bg-red-100 text-red-800',
   'angenommen': 'bg-green-100 text-green-800',
-  'rueckmeldung_ausstehend': 'bg-gray-100 text-gray-800',
+  'rueckmeldung_ausstehend': 'bg-sky-100 text-sky-800',
 }
 
 export function ApplicationCard({ application }: { application: Application }) {

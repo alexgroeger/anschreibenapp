@@ -115,4 +115,76 @@ export async function POST(
   }
 }
 
+// PATCH: Bestehende Version aktualisieren
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string; versionId: string }> }
+) {
+  try {
+    const { id: idParam, versionId: versionIdParam } = await params;
+    const applicationId = parseInt(idParam);
+    const versionId = parseInt(versionIdParam);
+    
+    if (isNaN(applicationId) || isNaN(versionId)) {
+      return NextResponse.json(
+        { error: 'Invalid ID' },
+        { status: 400 }
+      );
+    }
+    
+    const body = await request.json();
+    const { content, description } = body;
+    
+    if (!content || typeof content !== 'string') {
+      return NextResponse.json(
+        { error: 'Content is required' },
+        { status: 400 }
+      );
+    }
+    
+    const db = getDatabase();
+    
+    // Prüfe ob Version existiert
+    const version = db
+      .prepare('SELECT * FROM cover_letter_versions WHERE id = ? AND application_id = ?')
+      .get(versionId, applicationId) as any;
+    
+    if (!version) {
+      return NextResponse.json(
+        { error: 'Version not found' },
+        { status: 404 }
+      );
+    }
+    
+    // Aktualisiere die Version (behält version_number und created_at bei)
+    db.prepare(`
+      UPDATE cover_letter_versions 
+      SET content = ?, description = ?
+      WHERE id = ? AND application_id = ?
+    `).run(content, description || null, versionId, applicationId);
+    
+    // Aktualisiere auch das cover_letter Feld in applications
+    db.prepare('UPDATE applications SET cover_letter = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+      .run(content, applicationId);
+    
+    // Hole die aktualisierte Version zurück
+    const updatedVersion = db
+      .prepare('SELECT * FROM cover_letter_versions WHERE id = ?')
+      .get(versionId) as any;
+    
+    // Sync to cloud storage after write
+    await syncDatabaseAfterWrite();
+    
+    return NextResponse.json(
+      { version: updatedVersion },
+      { status: 200 }
+    );
+  } catch (error) {
+    console.error('Error updating version:', error);
+    return NextResponse.json(
+      { error: 'Failed to update version' },
+      { status: 500 }
+    );
+  }
+}
 

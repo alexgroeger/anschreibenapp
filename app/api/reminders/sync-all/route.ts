@@ -60,8 +60,21 @@ export async function POST(request: NextRequest) {
     }, { status: 200 });
   } catch (error) {
     console.error('Error syncing all reminders:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Failed to sync reminders';
+    
+    // Check for database corruption or I/O errors
+    const isDatabaseError = errorMessage.includes('disk I/O error') || 
+                           errorMessage.includes('database disk image is malformed') ||
+                           errorMessage.includes('database is locked') ||
+                           errorMessage.includes('unable to open database file');
+    
     return NextResponse.json(
-      { error: 'Failed to sync reminders' },
+      { 
+        error: isDatabaseError 
+          ? 'Database error: Please check database integrity and Cloud Storage sync' 
+          : 'Failed to sync reminders',
+        details: process.env.NODE_ENV === 'development' ? errorMessage : undefined
+      },
       { status: 500 }
     );
   }

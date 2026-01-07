@@ -80,8 +80,21 @@ export async function GET(request: NextRequest) {
     return response;
   } catch (error) {
     console.error('Error fetching in-progress applications:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Failed to fetch in-progress applications';
+    
+    // Check for database corruption or I/O errors
+    const isDatabaseError = errorMessage.includes('disk I/O error') || 
+                           errorMessage.includes('database disk image is malformed') ||
+                           errorMessage.includes('database is locked') ||
+                           errorMessage.includes('unable to open database file');
+    
     return NextResponse.json(
-      { error: 'Failed to fetch in-progress applications' },
+      { 
+        error: isDatabaseError 
+          ? 'Database error: Please check database integrity and Cloud Storage sync' 
+          : 'Failed to fetch in-progress applications',
+        details: process.env.NODE_ENV === 'development' ? errorMessage : undefined
+      },
       { status: 500 }
     );
   }
