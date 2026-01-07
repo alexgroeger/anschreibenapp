@@ -4,6 +4,11 @@ import fs from 'fs';
 
 const dbPath = path.join(process.cwd(), 'data', 'anschreiben.db');
 
+// Export function to get database path (used by sync.ts)
+export function getDatabasePath(): string {
+  return dbPath;
+}
+
 // Ensure data directory exists
 const dataDir = path.dirname(dbPath);
 if (!fs.existsSync(dataDir)) {
@@ -15,10 +20,29 @@ export function getDatabasePath(): string {
 }
 
 export function initDatabase(): Database.Database {
-  const db = new Database(dbPath);
+  let db: Database.Database;
+  
+  try {
+    db = new Database(dbPath);
+  } catch (error: any) {
+    // If database file is corrupted or locked, try to recover
+    if (error.message?.includes('disk I/O error') || 
+        error.message?.includes('database disk image is malformed') ||
+        error.message?.includes('database is locked')) {
+      console.error('Database file appears to be corrupted or locked:', error.message);
+      console.error('Database path:', dbPath);
+      throw new Error(`Database initialization failed: ${error.message}. Please check database integrity and Cloud Storage sync.`);
+    }
+    throw error;
+  }
   
   // Enable foreign keys
-  db.pragma('foreign_keys = ON');
+  try {
+    db.pragma('foreign_keys = ON');
+  } catch (error: any) {
+    console.error('Failed to enable foreign keys:', error);
+    // Continue anyway, but log the error
+  }
   
   // Create tables
   db.exec(`

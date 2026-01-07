@@ -544,11 +544,11 @@ export function ApplicationDetail() {
   }
 
   const statusColors: Record<string, string> = {
-    'gesendet': 'bg-blue-100 text-blue-800 border-blue-200',
-    'in_bearbeitung': 'bg-yellow-100 text-yellow-800 border-yellow-200',
-    'abgelehnt': 'bg-red-100 text-red-800 border-red-200',
-    'angenommen': 'bg-green-100 text-green-800 border-green-200',
-    'rueckmeldung_ausstehend': 'bg-gray-100 text-gray-800 border-gray-200',
+    'gesendet': 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
+    'in_bearbeitung': 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
+    'abgelehnt': 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
+    'angenommen': 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
+    'rueckmeldung_ausstehend': 'bg-sky-100 text-sky-800 dark:bg-sky-900 dark:text-sky-200',
   }
 
   const showSentAtField = status === 'rueckmeldung_ausstehend' || status === 'abgelehnt' || status === 'angenommen'
@@ -806,7 +806,7 @@ export function ApplicationDetail() {
                 handleStatusUpdate(newStatus)
               }}
             >
-              <SelectTrigger className="w-full h-9">
+              <SelectTrigger className={`w-full h-9 font-semibold ${statusColors[status] || statusColors['rueckmeldung_ausstehend']} border-0`}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

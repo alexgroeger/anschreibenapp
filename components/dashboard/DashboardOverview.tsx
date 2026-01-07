@@ -72,7 +72,7 @@ const statusColors: Record<string, string> = {
   'in_bearbeitung': 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
   'abgelehnt': 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
   'angenommen': 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
-  'rueckmeldung_ausstehend': 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200',
+  'rueckmeldung_ausstehend': 'bg-sky-100 text-sky-800 dark:bg-sky-900 dark:text-sky-200',
 }
 
 const statusIcons: Record<string, any> = {
@@ -442,13 +442,13 @@ export function DashboardOverview() {
             <Badge variant="outline">{sent7Days.length + sent8to14Days.length + sentThisMonth.length}</Badge>
           </div>
         </CardHeader>
-        <CardContent>
-          <div className="space-y-6">
+        <CardContent className="pb-4">
+          <div className="space-y-4">
             {/* Grafik */}
-            <div className="flex items-end justify-center gap-6 h-48 py-4">
+            <div className="flex items-end justify-center gap-6" style={{ height: '380px', paddingTop: '16px', paddingBottom: '8px' }}>
               {/* Vor 7 Tagen */}
-              <div className="flex flex-col items-center gap-2 flex-1">
-                <div className="relative w-full flex flex-col items-center">
+              <div className="flex flex-col items-center gap-2 flex-1 h-full">
+                <div className="relative w-full flex flex-col items-center justify-end flex-1" style={{ maxHeight: 'calc(100% - 60px)' }}>
                   <div 
                     onClick={() => {
                       if (sent7Days.length > 0) {
@@ -461,9 +461,10 @@ export function DashboardOverview() {
                     style={{ 
                       height: `${(() => {
                         const max = Math.max(sent7Days.length, sent8to14Days.length, sentThisMonth.length, 1);
-                        return sent7Days.length > 0 ? Math.max((sent7Days.length / max) * 150, 30) : 0;
+                        return sent7Days.length > 0 ? Math.max((sent7Days.length / max) * 300, 30) : 0;
                       })()}px`,
-                      minHeight: sent7Days.length > 0 ? '30px' : '0px'
+                      minHeight: sent7Days.length > 0 ? '30px' : '0px',
+                      maxHeight: '300px'
                     }}
                     title={`${sent7Days.length} Bewerbungen in den letzten 7 Tagen versendet${sent7Days.length > 0 ? ' - Klicken zum Anzeigen' : ''}`}
                   />
@@ -473,8 +474,8 @@ export function DashboardOverview() {
               </div>
               
               {/* Letzte 8-14 Tage */}
-              <div className="flex flex-col items-center gap-2 flex-1">
-                <div className="relative w-full flex flex-col items-center">
+              <div className="flex flex-col items-center gap-2 flex-1 h-full">
+                <div className="relative w-full flex flex-col items-center justify-end flex-1" style={{ maxHeight: 'calc(100% - 60px)' }}>
                   <div 
                     onClick={() => {
                       if (sent8to14Days.length > 0) {
@@ -487,9 +488,10 @@ export function DashboardOverview() {
                     style={{ 
                       height: `${(() => {
                         const max = Math.max(sent7Days.length, sent8to14Days.length, sentThisMonth.length, 1);
-                        return sent8to14Days.length > 0 ? Math.max((sent8to14Days.length / max) * 150, 30) : 0;
+                        return sent8to14Days.length > 0 ? Math.max((sent8to14Days.length / max) * 300, 30) : 0;
                       })()}px`,
-                      minHeight: sent8to14Days.length > 0 ? '30px' : '0px'
+                      minHeight: sent8to14Days.length > 0 ? '30px' : '0px',
+                      maxHeight: '300px'
                     }}
                     title={`${sent8to14Days.length} Bewerbungen in den letzten 8-14 Tagen versendet${sent8to14Days.length > 0 ? ' - Klicken zum Anzeigen' : ''}`}
                   />
@@ -499,8 +501,8 @@ export function DashboardOverview() {
               </div>
 
               {/* Aktueller Monat */}
-              <div className="flex flex-col items-center gap-2 flex-1">
-                <div className="relative w-full flex flex-col items-center">
+              <div className="flex flex-col items-center gap-2 flex-1 h-full">
+                <div className="relative w-full flex flex-col items-center justify-end flex-1" style={{ maxHeight: 'calc(100% - 60px)' }}>
                   <div 
                     onClick={() => {
                       if (sentThisMonth.length > 0) {
@@ -513,9 +515,10 @@ export function DashboardOverview() {
                     style={{ 
                       height: `${(() => {
                         const max = Math.max(sent7Days.length, sent8to14Days.length, sentThisMonth.length, 1);
-                        return sentThisMonth.length > 0 ? Math.max((sentThisMonth.length / max) * 150, 30) : 0;
+                        return sentThisMonth.length > 0 ? Math.max((sentThisMonth.length / max) * 300, 30) : 0;
                       })()}px`,
-                      minHeight: sentThisMonth.length > 0 ? '30px' : '0px'
+                      minHeight: sentThisMonth.length > 0 ? '30px' : '0px',
+                      maxHeight: '300px'
                     }}
                     title={`${sentThisMonth.length} Bewerbungen im aktuellen Monat versendet${sentThisMonth.length > 0 ? ' - Klicken zum Anzeigen' : ''}`}
                   />
@@ -526,7 +529,7 @@ export function DashboardOverview() {
             </div>
 
             {/* Legende */}
-            <div className="flex justify-center gap-6 text-sm flex-wrap">
+            <div className="flex justify-center gap-6 text-sm flex-wrap pt-2">
               <div className="flex items-center gap-2">
                 <div className="w-4 h-4 bg-blue-500 rounded"></div>
                 <span>Letzte 7 Tage ({sent7Days.length})</span>

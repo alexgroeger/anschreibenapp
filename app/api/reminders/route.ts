@@ -101,13 +101,27 @@ export async function GET(request: NextRequest) {
     console.error('Error fetching reminders:', error);
     const errorMessage = error instanceof Error ? error.message : 'Failed to fetch reminders';
     const errorStack = error instanceof Error ? error.stack : undefined;
+    
+    // Check for database corruption or I/O errors
+    const isDatabaseError = errorMessage.includes('disk I/O error') || 
+                           errorMessage.includes('database disk image is malformed') ||
+                           errorMessage.includes('database is locked') ||
+                           errorMessage.includes('unable to open database file');
+    
     console.error('Full error details:', {
       message: errorMessage,
       stack: errorStack,
-      error: error
+      error: error,
+      isDatabaseError
     });
+    
     return NextResponse.json(
-      { error: errorMessage, details: errorStack },
+      { 
+        error: isDatabaseError 
+          ? 'Database error: Please check database integrity and Cloud Storage sync' 
+          : errorMessage, 
+        details: process.env.NODE_ENV === 'development' ? errorStack : undefined 
+      },
       { status: 500 }
     );
   }

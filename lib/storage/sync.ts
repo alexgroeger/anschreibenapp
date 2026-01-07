@@ -297,7 +297,15 @@ export async function syncDatabaseOnStartup(): Promise<void> {
     const dbPath = getDatabasePath();
     const localExists = existsSync(dbPath);
     const file = bucket.file(DB_FILE_NAME);
-    const [cloudExists] = await file.exists();
+    
+    let cloudExists = false;
+    try {
+      [cloudExists] = await file.exists();
+    } catch (existsError: any) {
+      console.error('Error checking if cloud database exists:', existsError);
+      // If we can't check, assume it doesn't exist and continue
+      cloudExists = false;
+    }
 
     if (cloudExists && !localExists) {
       // Cloud has database, local doesn't - download
@@ -308,22 +316,28 @@ export async function syncDatabaseOnStartup(): Promise<void> {
       }
     } else if (cloudExists && localExists) {
       // Both exist - use cloud version if it's newer
-      const [metadata] = await file.getMetadata();
-      const cloudModified = new Date(metadata.updated);
-      const localStats = statSync(dbPath);
-      const localModified = localStats.mtime;
+      try {
+        const [metadata] = await file.getMetadata();
+        const cloudModified = new Date(metadata.updated);
+        const localStats = statSync(dbPath);
+        const localModified = localStats.mtime;
 
-      if (cloudModified > localModified) {
-        console.log('Cloud database is newer, downloading...');
-        const downloaded = await downloadDatabaseFromCloud();
-        if (!downloaded) {
-          console.warn('Failed to download newer database from cloud, keeping local version');
+        if (cloudModified > localModified) {
+          console.log('Cloud database is newer, downloading...');
+          const downloaded = await downloadDatabaseFromCloud();
+          if (!downloaded) {
+            console.warn('Failed to download newer database from cloud, keeping local version');
+          }
+        } else {
+          console.log('Local database is newer or same, keeping local version');
+          // Upload local version to ensure cloud is up to date
+          console.log('Uploading local database to ensure cloud is synchronized...');
+          await uploadDatabaseToCloud();
         }
-      } else {
-        console.log('Local database is newer or same, keeping local version');
-        // Upload local version to ensure cloud is up to date
-        console.log('Uploading local database to ensure cloud is synchronized...');
-        await uploadDatabaseToCloud();
+      } catch (metadataError: any) {
+        console.error('Error comparing database timestamps:', metadataError);
+        // If we can't compare, keep local version
+        console.log('Keeping local database version due to metadata error');
       }
     } else if (!cloudExists && localExists) {
       // Local exists, cloud doesn't - upload
@@ -333,9 +347,15 @@ export async function syncDatabaseOnStartup(): Promise<void> {
       // Neither exists - will be created by initDatabase
       console.log('No database found locally or in cloud, will create new one');
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error during database sync on startup:', error);
+    console.error('Error details:', {
+      message: error.message,
+      stack: error.stack,
+      code: error.code
+    });
     // Continue with local database if sync fails
+    console.log('Continuing with local database (if exists) or creating new one');
   }
 }
 

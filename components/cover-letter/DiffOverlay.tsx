@@ -1,15 +1,18 @@
 "use client"
 
-import React, { useRef, useEffect } from "react"
+import React, { useRef, useEffect, useState } from "react"
 import { computeWordDiff, type DiffSegment } from "@/lib/text-diff"
 import { Button } from "@/components/ui/button"
-import { Check, X } from "lucide-react"
+import { Textarea } from "@/components/ui/textarea"
+import { Label } from "@/components/ui/label"
+import { Check, X, Loader2, Edit } from "lucide-react"
 
 interface DiffOverlayProps {
   originalText: string
   modifiedText: string
   onAccept: () => void
   onReject: () => void
+  onRevise?: (revisionInput: string, revisionBase: 'original' | 'pending') => Promise<void>
   textareaRef: React.RefObject<HTMLTextAreaElement>
 }
 
@@ -18,9 +21,14 @@ export function DiffOverlay({
   modifiedText,
   onAccept,
   onReject,
+  onRevise,
   textareaRef,
 }: DiffOverlayProps) {
   const overlayRef = useRef<HTMLDivElement>(null)
+  const [isRevising, setIsRevising] = useState(false)
+  const [revisionInput, setRevisionInput] = useState("")
+  const [revisionBase, setRevisionBase] = useState<'original' | 'pending'>('original')
+  const [isRevisingLoading, setIsRevisingLoading] = useState(false)
 
   // Berechne Diff mit Fehlerbehandlung
   let diffSegments: DiffSegment[] = []
@@ -137,6 +145,37 @@ export function DiffOverlay({
     }).filter(Boolean)
   }
 
+  const handleReviseClick = () => {
+    if (isRevising) {
+      // Abbrechen
+      setIsRevising(false)
+      setRevisionInput("")
+      setRevisionBase('original')
+    } else {
+      // Überarbeiten-Modus aktivieren
+      setIsRevising(true)
+    }
+  }
+
+  const handleReviseSubmit = async () => {
+    if (!onRevise || !revisionInput.trim() || revisionInput.trim().length < 10) {
+      return
+    }
+
+    setIsRevisingLoading(true)
+    try {
+      await onRevise(revisionInput.trim(), revisionBase)
+      // Nach erfolgreicher Überarbeitung: Input zurücksetzen, aber Modus bleibt aktiv
+      setRevisionInput("")
+      setIsRevising(false)
+    } catch (error) {
+      console.error('Error revising:', error)
+      // Fehler wird vom Parent-Handler behandelt
+    } finally {
+      setIsRevisingLoading(false)
+    }
+  }
+
   return (
     <div className="absolute inset-0 pointer-events-none">
       {/* Diff Overlay */}
@@ -154,25 +193,136 @@ export function DiffOverlay({
         {renderDiff()}
       </div>
 
-      {/* Accept/Reject Buttons */}
-      <div className="absolute top-4 right-4 flex gap-2 pointer-events-auto z-10">
-        <Button
-          onClick={onAccept}
-          size="sm"
-          className="bg-green-600 hover:bg-green-700 text-white shadow-lg"
-        >
-          <Check className="h-4 w-4 mr-1" />
-          Änderungen übernehmen
-        </Button>
-        <Button
-          onClick={onReject}
-          size="sm"
-          variant="destructive"
-          className="shadow-lg"
-        >
-          <X className="h-4 w-4 mr-1" />
-          Ablehnen
-        </Button>
+      {/* Accept/Reject/Revise Buttons */}
+      <div className="absolute top-4 right-4 flex flex-col gap-2 pointer-events-auto z-10">
+        <div className="flex gap-2">
+          <Button
+            onClick={onAccept}
+            size="sm"
+            disabled={isRevising}
+            className="bg-green-600 hover:bg-green-700 text-white shadow-lg"
+          >
+            <Check className="h-4 w-4 mr-1" />
+            Änderungen übernehmen
+          </Button>
+          <Button
+            onClick={onReject}
+            size="sm"
+            variant="destructive"
+            disabled={isRevising}
+            className="shadow-lg"
+          >
+            <X className="h-4 w-4 mr-1" />
+            Ablehnen
+          </Button>
+          {onRevise && (
+            <Button
+              onClick={handleReviseClick}
+              size="sm"
+              variant={isRevising ? "outline" : "secondary"}
+              className="shadow-lg"
+            >
+              {isRevising ? (
+                <>
+                  <X className="h-4 w-4 mr-1" />
+                  Abbrechen
+                </>
+              ) : (
+                <>
+                  <Edit className="h-4 w-4 mr-1" />
+                  Überarbeiten
+                </>
+              )}
+            </Button>
+          )}
+        </div>
+
+        {/* Überarbeiten Input-Feld */}
+        {isRevising && onRevise && (
+          <div className="bg-background border rounded-md p-4 shadow-lg min-w-[400px] max-w-[500px]">
+            <div className="space-y-3">
+              {/* Basis-Auswahl */}
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold">Basis für Überarbeitung:</Label>
+                <div className="flex gap-4">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="revisionBase"
+                      value="original"
+                      checked={revisionBase === 'original'}
+                      onChange={(e) => setRevisionBase(e.target.value as 'original' | 'pending')}
+                      className="cursor-pointer"
+                    />
+                    <span className="text-sm">Original-Anschreiben</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="revisionBase"
+                      value="pending"
+                      checked={revisionBase === 'pending'}
+                      onChange={(e) => setRevisionBase(e.target.value as 'original' | 'pending')}
+                      className="cursor-pointer"
+                    />
+                    <span className="text-sm">Aktueller Vorschlag</span>
+                  </label>
+                </div>
+              </div>
+
+              {/* Input-Feld */}
+              <div className="space-y-2">
+                <Label htmlFor="revision-input" className="text-xs font-semibold">
+                  Änderungswunsch:
+                </Label>
+                <Textarea
+                  id="revision-input"
+                  value={revisionInput}
+                  onChange={(e) => setRevisionInput(e.target.value)}
+                  placeholder="z.B. 'Mache den Ton formeller', 'Kürze den ersten Absatz', 'Hervorhebe mehr meine Erfahrung mit React'..."
+                  className="min-h-[80px] resize-none text-sm"
+                  disabled={isRevisingLoading}
+                  onKeyDown={(e) => {
+                    // CMD+Enter (Mac) oder Ctrl+Enter (Windows/Linux) zum Absenden
+                    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                      e.preventDefault()
+                      if (!isRevisingLoading && revisionInput.trim().length >= 10) {
+                        handleReviseSubmit()
+                      }
+                    }
+                  }}
+                />
+                <div className="text-xs text-muted-foreground">
+                  {revisionInput.length < 10 ? (
+                    <span className="text-amber-600">Mindestens 10 Zeichen erforderlich</span>
+                  ) : (
+                    <span>{revisionInput.length} Zeichen (CMD+Enter zum Absenden)</span>
+                  )}
+                </div>
+              </div>
+
+              {/* Submit Button */}
+              <Button
+                onClick={handleReviseSubmit}
+                disabled={isRevisingLoading || !revisionInput.trim() || revisionInput.trim().length < 10}
+                className="w-full"
+                size="sm"
+              >
+                {isRevisingLoading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Überarbeite...
+                  </>
+                ) : (
+                  <>
+                    <Edit className="h-4 w-4 mr-2" />
+                    Überarbeiten senden
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

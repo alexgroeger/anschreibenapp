@@ -158,6 +158,7 @@ export function CoverLetterEditor({
   const [showDescriptionDialog, setShowDescriptionDialog] = useState(false)
   const [versionDescription, setVersionDescription] = useState("")
   const [pendingSave, setPendingSave] = useState(false)
+  const [saveMode, setSaveMode] = useState<'new' | 'update'>('new')
   
   // Undo/Redo History
   const [history, setHistory] = useState<HistoryEntry[]>([{
@@ -306,6 +307,13 @@ export function CoverLetterEditor({
   }
 
   const handleSave = async () => {
+    // Setze Standard-Modus: 'new' wenn keine Version vorhanden, sonst 'new' als Default
+    if (currentVersionId === null) {
+      setSaveMode('new')
+    } else {
+      // Default ist 'new', aber 'update' ist auch möglich
+      setSaveMode('new')
+    }
     // Zeige Dialog für Beschreibung
     setPendingSave(true)
     setShowDescriptionDialog(true)
@@ -315,18 +323,44 @@ export function CoverLetterEditor({
     setSaving(true)
     setShowDescriptionDialog(false)
     try {
-      // Save as new version
-      const versionResponse = await fetch(`/api/applications/${application.id}/versions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          content,
-          description: versionDescription.trim() || null
-        }),
-      })
+      let versionResponse
+      
+      if (saveMode === 'update' && currentVersionId !== null) {
+        // Update existing version
+        versionResponse = await fetch(`/api/applications/${application.id}/versions/${currentVersionId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            content,
+            description: versionDescription.trim() || null
+          }),
+        })
+      } else {
+        // Save as new version
+        versionResponse = await fetch(`/api/applications/${application.id}/versions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            content,
+            description: versionDescription.trim() || null
+          }),
+        })
+      }
 
       if (!versionResponse.ok) {
         throw new Error('Fehler beim Speichern der Version')
+      }
+
+      const versionData = await versionResponse.json()
+      
+      // Wenn Update-Modus, bleibt currentVersionId gleich, sonst wird es auf die neue Version gesetzt
+      if (saveMode === 'update' && currentVersionId !== null) {
+        // currentVersionId bleibt gleich
+      } else {
+        // Neue Version wurde erstellt, setze currentVersionId
+        if (versionData.version) {
+          setCurrentVersionId(versionData.version.id)
+        }
       }
 
       // Update suggestion statuses
@@ -349,6 +383,7 @@ export function CoverLetterEditor({
       setHasUnsavedChanges(false)
       setVersionDescription("") // Reset description
       setPendingSave(false)
+      setSaveMode('new') // Reset to default
       
       // Schließe Dialog komplett, wenn pendingClose gesetzt ist (nicht minimieren)
       if (pendingClose) {
@@ -370,6 +405,7 @@ export function CoverLetterEditor({
     setShowDescriptionDialog(false)
     setVersionDescription("")
     setPendingSave(false)
+    setSaveMode('new') // Reset to default
     // Wenn pendingClose gesetzt war, bleibt der Editor offen
     setPendingClose(false)
   }
@@ -602,6 +638,69 @@ export function CoverLetterEditor({
     setShowDiff(false)
     setPendingCoverLetter(null)
     setOriginalCoverLetter("")
+  }
+
+  // Handle revise request from Diff Overlay
+  const handleRevise = async (revisionInput: string, revisionBase: 'original' | 'pending') => {
+    try {
+      // Determine base text based on selection
+      const baseText = revisionBase === 'original' 
+        ? originalCoverLetter 
+        : (pendingCoverLetter || originalCoverLetter)
+      
+      if (!baseText) {
+        throw new Error('Kein Basis-Text verfügbar')
+      }
+
+      const response = await fetch('/api/cover-letter/modify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          coverLetter: baseText,
+          modificationRequest: revisionInput,
+          matchResult: application.match_result || '',
+          jobDescription: application.job_description || '',
+          extraction: application.extraction_data ? JSON.parse(application.extraction_data) : undefined,
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Fehler beim Überarbeiten des Anschreibens')
+      }
+
+      const data = await response.json()
+      const modifiedCoverLetter = data.modifiedCoverLetter
+
+      if (modifiedCoverLetter && modifiedCoverLetter.trim()) {
+        // Store the current pending version before updating (needed for diff comparison)
+        const previousPending = pendingCoverLetter
+        
+        // Update pending cover letter with new revision
+        setPendingCoverLetter(modifiedCoverLetter.trim())
+        
+        // Set the base for diff comparison:
+        // - If revising from 'pending', compare against the previous pending version
+        // - If revising from 'original', compare against the original cover letter
+        if (revisionBase === 'pending' && previousPending) {
+          // Compare new revision against previous pending version
+          setOriginalCoverLetter(previousPending)
+        } else {
+          // Compare against original (use existing originalCoverLetter if available, otherwise use content)
+          // originalCoverLetter should always be set when in diff mode, but fallback to content for safety
+          if (!originalCoverLetter) {
+            setOriginalCoverLetter(content)
+          }
+          // If originalCoverLetter is already set, keep it (no need to update)
+        }
+        setShowDiff(true)
+      } else {
+        throw new Error('Kein überarbeitetes Anschreiben erhalten')
+      }
+    } catch (error: any) {
+      alert(error.message || 'Fehler beim Überarbeiten des Anschreibens')
+      throw error // Re-throw so DiffOverlay can handle it
+    }
   }
 
   // Handle modification request
@@ -884,6 +983,7 @@ export function CoverLetterEditor({
                       modifiedText={pendingCoverLetter}
                       onAccept={handleAcceptChanges}
                       onReject={handleRejectChanges}
+                      onRevise={handleRevise}
                       textareaRef={textareaRef}
                     />
                   )}
@@ -1013,43 +1113,85 @@ export function CoverLetterEditor({
           <DialogHeader>
             <DialogTitle>Version speichern</DialogTitle>
             <DialogDescription>
-              Optional: Geben Sie eine kurze Beschreibung für diese Version ein (max. 25 Zeichen, z.B. "Ton formeller gemacht").
+              Wählen Sie, wie Sie die Version speichern möchten.
             </DialogDescription>
           </DialogHeader>
-          <div className="py-4">
-            <Label htmlFor="version-description">Beschreibung (optional)</Label>
-            <Textarea
-              id="version-description"
-              value={versionDescription}
-              onChange={(e) => {
-                // Begrenze auf 25 Zeichen
-                const text = e.target.value
-                if (text.length <= 25) {
-                  setVersionDescription(text)
-                }
-              }}
-              placeholder="z.B. 'Ton formeller gemacht', 'Ersten Absatz gekürzt'..."
-              className="mt-2"
-              rows={3}
-              maxLength={25}
-              autoFocus
-              onKeyDown={(e) => {
-                // CMD+Enter oder Ctrl+Enter zum Speichern
-                if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-                  e.preventDefault();
-                  if (!saving) {
-                    handleSaveWithDescription();
+          <div className="py-4 space-y-4">
+            {/* Speichermodus Auswahl */}
+            <div className="space-y-3">
+              <Label>Speichermodus</Label>
+              <div className="space-y-2">
+                <label className="flex items-center space-x-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="saveMode"
+                    value="new"
+                    checked={saveMode === 'new'}
+                    onChange={(e) => setSaveMode(e.target.value as 'new' | 'update')}
+                    className="h-4 w-4 text-primary focus:ring-primary"
+                  />
+                  <span className="text-sm">
+                    Neue Version speichern
+                  </span>
+                </label>
+                <label className="flex items-center space-x-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="saveMode"
+                    value="update"
+                    checked={saveMode === 'update'}
+                    onChange={(e) => setSaveMode(e.target.value as 'new' | 'update')}
+                    disabled={currentVersionId === null}
+                    className="h-4 w-4 text-primary focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                  />
+                  <span className={`text-sm ${currentVersionId === null ? 'text-muted-foreground' : ''}`}>
+                    Aktuelle Version überschreiben
+                    {currentVersionId === null && ' (nicht verfügbar)'}
+                  </span>
+                </label>
+              </div>
+              {saveMode === 'update' && currentVersionId !== null && (
+                <p className="text-xs text-muted-foreground">
+                  Die aktuelle Version wird überschrieben. Versionsnummer und Datum bleiben erhalten.
+                </p>
+              )}
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="version-description">Beschreibung (optional)</Label>
+              <Textarea
+                id="version-description"
+                value={versionDescription}
+                onChange={(e) => {
+                  // Begrenze auf 25 Zeichen
+                  const text = e.target.value
+                  if (text.length <= 25) {
+                    setVersionDescription(text)
                   }
-                }
-                // Escape zum Abbrechen
-                if (e.key === 'Escape') {
-                  e.preventDefault();
-                  handleCancelSave();
-                }
-              }}
-            />
-            <div className="text-xs text-muted-foreground mt-1 text-right">
-              {versionDescription.length}/25 Zeichen
+                }}
+                placeholder="z.B. 'Ton formeller gemacht', 'Ersten Absatz gekürzt'..."
+                className="mt-2"
+                rows={3}
+                maxLength={25}
+                autoFocus
+                onKeyDown={(e) => {
+                  // CMD+Enter oder Ctrl+Enter zum Speichern
+                  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                    e.preventDefault();
+                    if (!saving) {
+                      handleSaveWithDescription();
+                    }
+                  }
+                  // Escape zum Abbrechen
+                  if (e.key === 'Escape') {
+                    e.preventDefault();
+                    handleCancelSave();
+                  }
+                }}
+              />
+              <div className="text-xs text-muted-foreground mt-1 text-right">
+                {versionDescription.length}/25 Zeichen
+              </div>
             </div>
           </div>
           <DialogFooter>
