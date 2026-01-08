@@ -6,6 +6,9 @@ export const matchPrompt = `Du bist ein Experte für die Analyse von Bewerbungen
 **Lebenslauf des Nutzers:**
 {resume}
 
+**Zusätzliche Nutzerinformationen:**
+{userProfile}
+
 **Historische Anschreiben des Nutzers (für Kontext über Erfahrungen und Stärken):**
 {oldCoverLetters}
 
@@ -22,6 +25,8 @@ Bewerte die Passung nach folgenden Kriterien:
 - **gut**: Der Nutzer erfüllt die meisten wichtigen Anforderungen, hat relevante Erfahrungen, einige Lücken sind vorhanden
 - **mittel**: Der Nutzer erfüllt einige Anforderungen, hat teilweise relevante Erfahrungen, aber es gibt signifikante Lücken
 - **nicht_passend**: Der Nutzer erfüllt nur wenige oder keine wichtigen Anforderungen, wenig relevante Erfahrungen
+
+**WICHTIG:** Nutze die zusätzlichen Nutzerinformationen (Werte, Soft Skills, Arbeitsweise, Entwicklungsrichtung) für eine bessere und umfassendere Passungsbewertung. Diese Informationen können besonders bei der Bewertung der kulturellen Passung und langfristigen Entwicklungspotenzials hilfreich sein.
 
 Nach dem JSON-Objekt folgt die detaillierte Analyse:
 1. **Passung**: Wie gut passt der Nutzer zu den Anforderungen?

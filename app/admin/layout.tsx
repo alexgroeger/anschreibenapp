@@ -13,7 +13,7 @@ const adminNavItems = [
   },
   {
     href: "/admin/resume",
-    label: "Lebenslauf",
+    label: "Profil",
     icon: Briefcase,
   },
   {
@@ -22,14 +22,14 @@ const adminNavItems = [
     icon: Code,
   },
   {
-    href: "/admin/settings",
-    label: "Einstellungen",
-    icon: Settings,
-  },
-  {
     href: "/admin/generierung",
     label: "Generierung",
     icon: Sparkles,
+  },
+  {
+    href: "/admin/settings",
+    label: "Einstellungen",
+    icon: Settings,
   },
   {
     href: "/admin/database",

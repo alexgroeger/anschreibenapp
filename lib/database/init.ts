@@ -15,10 +15,6 @@ if (!fs.existsSync(dataDir)) {
   fs.mkdirSync(dataDir, { recursive: true });
 }
 
-export function getDatabasePath(): string {
-  return dbPath;
-}
-
 export function initDatabase(): Database.Database {
   let db: Database.Database;
   
@@ -50,6 +46,15 @@ export function initDatabase(): Database.Database {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       content TEXT NOT NULL,
       uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS user_profile (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      values_motivation TEXT,
+      soft_skills TEXT,
+      work_style_abilities TEXT,
+      development_direction TEXT,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -341,6 +346,9 @@ export function initDatabase(): Database.Database {
     
     -- Resume indexes
     CREATE INDEX IF NOT EXISTS idx_resume_updated_at ON resume(updated_at DESC);
+    
+    -- User profile indexes
+    CREATE INDEX IF NOT EXISTS idx_user_profile_updated_at ON user_profile(updated_at DESC);
     
     -- Settings indexes (for faster lookups)
     CREATE INDEX IF NOT EXISTS idx_settings_key ON settings(key);

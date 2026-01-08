@@ -4,6 +4,7 @@ import { getDatabase } from '@/lib/database/client';
 import { getSettings } from '@/lib/database/settings';
 import { generateTextWithFallback } from '@/lib/ai/model-helper';
 import { parseParagraphs } from '@/lib/paragraph-parser';
+import { formatUserProfile } from '@/lib/utils';
 
 export async function POST(request: NextRequest) {
   try {
@@ -35,6 +36,10 @@ export async function POST(request: NextRequest) {
     const db = getDatabase();
     const resumeData = db.prepare('SELECT * FROM resume ORDER BY updated_at DESC LIMIT 1').get() as any;
     const resume = resumeData?.content || 'Kein Lebenslauf hinterlegt.';
+
+    // Load user profile from database
+    const userProfileData = db.prepare('SELECT * FROM user_profile ORDER BY updated_at DESC LIMIT 1').get() as any;
+    const userProfile = formatUserProfile(userProfileData);
 
     // Parse paragraphs from current cover letter for context
     const paragraphs = parseParagraphs(coverLetter);
@@ -124,6 +129,7 @@ ${modificationRequest}
 - Jobbeschreibung: ${jobDescription || 'Nicht verfügbar'}
 - Matching-Ergebnis: ${matchResult || 'Nicht verfügbar'}
 - Lebenslauf: ${resume.substring(0, 1000)}${resume.length > 1000 ? '...' : ''}
+${userProfile ? `- Zusätzliche Nutzerinformationen: ${userProfile.substring(0, 500)}${userProfile.length > 500 ? '...' : ''}` : ''}
 ${extraction ? `- Extraktionsdaten: ${JSON.stringify(extraction).substring(0, 500)}` : ''}
 
 **KRITISCH - Formatierung EXAKT beibehalten:**
@@ -164,6 +170,7 @@ ${modificationRequest}
 - Jobbeschreibung: ${jobDescription || 'Nicht verfügbar'}
 - Matching-Ergebnis: ${matchResult || 'Nicht verfügbar'}
 - Lebenslauf: ${resume.substring(0, 1000)}${resume.length > 1000 ? '...' : ''}
+${userProfile ? `- Zusätzliche Nutzerinformationen: ${userProfile.substring(0, 500)}${userProfile.length > 500 ? '...' : ''}` : ''}
 ${extraction ? `- Extraktionsdaten: ${JSON.stringify(extraction).substring(0, 500)}` : ''}
 
 **Deine Aufgabe:**

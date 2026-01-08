@@ -3,6 +3,7 @@ import { getPrompt } from '@/lib/prompts';
 import { getDatabase } from '@/lib/database/client';
 import { getSettings } from '@/lib/database/settings';
 import { generateTextWithFallback } from '@/lib/ai/model-helper';
+import { formatUserProfile } from '@/lib/utils';
 
 export async function POST(request: NextRequest) {
   try {
@@ -27,6 +28,10 @@ export async function POST(request: NextRequest) {
     const resumeData = db.prepare('SELECT * FROM resume ORDER BY updated_at DESC LIMIT 1').get() as any;
     const resume = resumeData?.content || 'Kein Lebenslauf hinterlegt.';
 
+    // Load user profile from database
+    const userProfileData = db.prepare('SELECT * FROM user_profile ORDER BY updated_at DESC LIMIT 1').get() as any;
+    const userProfile = formatUserProfile(userProfileData);
+
     // Load old cover letters from database (limit to last 20 for performance)
     const oldCoverLettersData = db
       .prepare('SELECT * FROM old_cover_letters ORDER BY uploaded_at DESC LIMIT 20')
@@ -39,6 +44,7 @@ export async function POST(request: NextRequest) {
     const prompt = getPrompt('match')
       .replace('{jobDescription}', jobDescription)
       .replace('{resume}', resume)
+      .replace('{userProfile}', userProfile || 'Keine zusätzlichen Nutzerinformationen vorhanden.')
       .replace('{oldCoverLetters}', oldCoverLetters);
 
     const { text } = await generateTextWithFallback(

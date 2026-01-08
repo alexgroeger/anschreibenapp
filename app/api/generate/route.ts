@@ -3,6 +3,7 @@ import { getPrompt } from '@/lib/prompts';
 import { getDatabase } from '@/lib/database/client';
 import { getSettings } from '@/lib/database/settings';
 import { generateTextWithFallback } from '@/lib/ai/model-helper';
+import { formatUserProfile } from '@/lib/utils';
 
 export async function POST(request: NextRequest) {
   try {
@@ -32,6 +33,10 @@ export async function POST(request: NextRequest) {
     // Load CV from database
     const resumeData = db.prepare('SELECT * FROM resume ORDER BY updated_at DESC LIMIT 1').get() as any;
     const resume = resumeData?.content || 'Kein Lebenslauf hinterlegt.';
+
+    // Load user profile from database
+    const userProfileData = db.prepare('SELECT * FROM user_profile ORDER BY updated_at DESC LIMIT 1').get() as any;
+    const userProfile = formatUserProfile(userProfileData);
 
     // Load old cover letters and analyze tone (limit to last 20 for performance)
     const oldCoverLettersData = db
@@ -139,6 +144,7 @@ ${sections.join('\n\n')}
     const prompt = getPrompt('generate')
       .replace('{matchResult}', matchResult)
       .replace('{resume}', resume)
+      .replace('{userProfile}', userProfile || 'Keine zusätzlichen Nutzerinformationen vorhanden.')
       .replace('{toneAnalysis}', toneAnalysis)
       .replace('{tone}', tone || defaultTone)
       .replace('{focus}', focus || defaultFocus)
