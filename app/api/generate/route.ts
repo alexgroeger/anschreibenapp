@@ -8,7 +8,7 @@ import { formatUserProfile } from '@/lib/utils';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { matchResult, jobDescription, tone, focus, textLength, formality, emphasis, extraction } = body;
+    const { matchResult, jobDescription, tone, focus, textLength, formality, emphasis, extraction, motivation_position, motivation_company } = body;
 
     if (!matchResult || !jobDescription) {
       return NextResponse.json(
@@ -141,6 +141,32 @@ ${sections.join('\n\n')}
       }
     }
 
+    // Format motivation answers for prompt
+    let motivationSection = '';
+    if (motivation_position || motivation_company) {
+      const motivationParts = [];
+      
+      if (motivation_position) {
+        motivationParts.push(`**Warum begeistert dich die ausgeschrieben Stelle?**
+${motivation_position}`);
+      }
+      
+      if (motivation_company) {
+        motivationParts.push(`**Was begeistert dich an dem Unternehmen oder warum möchtest du speziell in dem Themenfeld arbeiten?**
+${motivation_company}`);
+      }
+      
+      if (motivationParts.length > 0) {
+        motivationSection = `**WICHTIG - Motivationsantworten des Nutzers:**
+
+${motivationParts.join('\n\n')}
+
+Diese Antworten spiegeln die persönliche Motivation des Nutzers wider. Integriere diese authentisch in das Anschreiben, ohne sie wortwörtlich zu kopieren. Nutze sie, um die Motivation und Begeisterung des Nutzers für die Position und das Unternehmen zu vermitteln.
+
+`;
+      }
+    }
+
     const prompt = getPrompt('generate')
       .replace('{matchResult}', matchResult)
       .replace('{resume}', resume)
@@ -152,9 +178,10 @@ ${sections.join('\n\n')}
       .replace('{formality}', formality || defaultFormality)
       .replace('{emphasis}', emphasis || defaultEmphasis)
       .replace('{jobDescription}', jobDescription)
+      .replace('{extractionData}', extractionSection)
+      .replace('{motivationAnswers}', motivationSection)
       .replace('{favoriteFormulations}', favoriteFormulationsSection)
-      .replace('{excludedFormulations}', excludedFormulationsSection)
-      .replace('{extractionData}', extractionSection);
+      .replace('{excludedFormulations}', excludedFormulationsSection);
 
     const { text } = await generateTextWithFallback(
       prompt,

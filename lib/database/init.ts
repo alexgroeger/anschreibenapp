@@ -225,6 +225,27 @@ export function initDatabase(): Database.Database {
         db.exec(`ALTER TABLE applications ADD COLUMN job_document_type TEXT;`);
       }
 
+      // Add motivation questions columns to applications table if they don't exist
+      const hasMotivationPosition = tableInfo.some((col: any) => col.name === 'motivation_position');
+      if (!hasMotivationPosition) {
+        db.exec(`ALTER TABLE applications ADD COLUMN motivation_position TEXT;`);
+      }
+      
+      const hasMotivationCompany = tableInfo.some((col: any) => col.name === 'motivation_company');
+      if (!hasMotivationCompany) {
+        db.exec(`ALTER TABLE applications ADD COLUMN motivation_company TEXT;`);
+      }
+      
+      const hasCompanyWebsite = tableInfo.some((col: any) => col.name === 'company_website');
+      if (!hasCompanyWebsite) {
+        db.exec(`ALTER TABLE applications ADD COLUMN company_website TEXT;`);
+      }
+      
+      const hasCompanyWebsiteContent = tableInfo.some((col: any) => col.name === 'company_website_content');
+      if (!hasCompanyWebsiteContent) {
+        db.exec(`ALTER TABLE applications ADD COLUMN company_website_content TEXT;`);
+      }
+
       // Add description column to cover_letter_versions table if it doesn't exist
       const versionsTableInfo = db.prepare("PRAGMA table_info(cover_letter_versions)").all() as any[];
       const hasDescription = versionsTableInfo.some((col: any) => col.name === 'description');

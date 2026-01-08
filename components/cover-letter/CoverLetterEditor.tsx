@@ -8,6 +8,7 @@ import { cva } from "class-variance-authority"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { 
@@ -20,11 +21,13 @@ import {
   X,
   Sparkles,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  ExternalLink
 } from "lucide-react"
 import { SuggestionList, type Suggestion } from "./SuggestionList"
 import { VersionHistory, type Version } from "./VersionHistory"
 import { DiffOverlay } from "./DiffOverlay"
+import { MotivationQuestionsDialog } from "./MotivationQuestionsDialog"
 import { parseParagraphs } from "@/lib/paragraph-parser"
 import {
   Dialog,
@@ -34,6 +37,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 
 interface Application {
   id: number
@@ -160,6 +164,24 @@ export function CoverLetterEditor({
   const [pendingSave, setPendingSave] = useState(false)
   const [saveMode, setSaveMode] = useState<'new' | 'update'>('new')
   
+  // Motivation questions
+  const [showMotivationDialog, setShowMotivationDialog] = useState(false)
+  const [motivationAnswers, setMotivationAnswers] = useState<{
+    motivation_position: string | null
+    motivation_company: string | null
+    company_website: string | null
+    company_website_content: string | null
+  } | null>(null)
+  const [activeTab, setActiveTab] = useState<'editor' | 'motivation'>('editor')
+  const [generatingPosition, setGeneratingPosition] = useState(false)
+  const [generatingCompany, setGeneratingCompany] = useState(false)
+  
+  // Refs for debouncing auto-save
+  const savePositionTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const saveCompanyTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const saveWebsiteTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const saveWebsiteContentTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  
   // Undo/Redo History
   const [history, setHistory] = useState<HistoryEntry[]>([{
     content: application.cover_letter || "",
@@ -174,8 +196,137 @@ export function CoverLetterEditor({
     if (isOpen && application.id) {
       loadVersions()
       loadSuggestions()
+      loadMotivationAnswers()
     }
   }, [isOpen, application.id])
+
+  // Cleanup timeouts on unmount
+  useEffect(() => {
+    return () => {
+      if (savePositionTimeoutRef.current) {
+        clearTimeout(savePositionTimeoutRef.current)
+      }
+      if (saveCompanyTimeoutRef.current) {
+        clearTimeout(saveCompanyTimeoutRef.current)
+      }
+      if (saveWebsiteTimeoutRef.current) {
+        clearTimeout(saveWebsiteTimeoutRef.current)
+      }
+      if (saveWebsiteContentTimeoutRef.current) {
+        clearTimeout(saveWebsiteContentTimeoutRef.current)
+      }
+    }
+  }, [])
+
+  const loadMotivationAnswers = async () => {
+    try {
+      const response = await fetch(`/api/applications/${application.id}/motivation-questions`)
+      if (response.ok) {
+        const data = await response.json()
+        setMotivationAnswers({
+          motivation_position: data.motivation_position || null,
+          motivation_company: data.motivation_company || null,
+          company_website: data.company_website || null,
+          company_website_content: data.company_website_content || null,
+        })
+      } else {
+        console.error('Failed to load motivation answers:', response.status, response.statusText)
+      }
+    } catch (error) {
+      console.error('Error loading motivation answers:', error)
+    }
+  }
+
+  const handleGenerateMotivationSuggestion = async (questionType: 'position' | 'company') => {
+    if (questionType === 'position') {
+      setGeneratingPosition(true)
+    } else {
+      setGeneratingCompany(true)
+    }
+
+    try {
+      // Ensure we have the latest website URL
+      const currentWebsite = motivationAnswers?.company_website || ''
+      
+      const response = await fetch('/api/motivation-suggestions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          questionType,
+          applicationId: application.id,
+          companyWebsite: currentWebsite || undefined,
+          jobDescription: application.job_description || undefined,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Fehler beim Generieren des Vorschlags')
+      }
+
+      const data = await response.json()
+      const suggestion = data.suggestion
+
+      if (questionType === 'position') {
+        setMotivationAnswers(prev => ({
+          ...prev,
+          motivation_position: suggestion,
+          motivation_company: prev?.motivation_company || null,
+          company_website: prev?.company_website || null,
+          company_website_content: prev?.company_website_content || null,
+        }))
+        // Auto-save the generated suggestion
+        try {
+          const saveResponse = await fetch(`/api/applications/${application.id}/motivation-questions`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              motivation_position: suggestion,
+            }),
+          })
+          if (!saveResponse.ok) {
+            throw new Error('Fehler beim Speichern')
+          }
+          await loadMotivationAnswers()
+        } catch (error) {
+          console.error('Error saving generated suggestion:', error)
+          alert('Vorschlag wurde generiert, aber konnte nicht gespeichert werden. Bitte speichern Sie manuell.')
+        }
+      } else {
+        setMotivationAnswers(prev => ({
+          ...prev,
+          motivation_position: prev?.motivation_position || null,
+          motivation_company: suggestion,
+          company_website: prev?.company_website || null,
+          company_website_content: prev?.company_website_content || null,
+        }))
+        // Auto-save the generated suggestion
+        try {
+          const saveResponse = await fetch(`/api/applications/${application.id}/motivation-questions`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              motivation_company: suggestion,
+            }),
+          })
+          if (!saveResponse.ok) {
+            throw new Error('Fehler beim Speichern')
+          }
+          await loadMotivationAnswers()
+        } catch (error) {
+          console.error('Error saving generated suggestion:', error)
+          alert('Vorschlag wurde generiert, aber konnte nicht gespeichert werden. Bitte speichern Sie manuell.')
+        }
+      }
+    } catch (error: any) {
+      alert(error.message || 'Fehler beim Generieren des Vorschlags')
+    } finally {
+      if (questionType === 'position') {
+        setGeneratingPosition(false)
+      } else {
+        setGeneratingCompany(false)
+      }
+    }
+  }
 
 
   // Initialize content when application changes
@@ -194,7 +345,11 @@ export function CoverLetterEditor({
       setPendingCoverLetter(null)
       setOriginalCoverLetter("")
     }
-  }, [application.cover_letter])
+    // Reload motivation answers when application changes
+    if (application.id) {
+      loadMotivationAnswers()
+    }
+  }, [application.cover_letter, application.id])
 
   const loadVersions = async () => {
     try {
@@ -259,6 +414,22 @@ export function CoverLetterEditor({
   const handleRegenerate = async () => {
     if (!application.job_description) return
 
+    // Check if motivation questions are answered (only for first generation)
+    const hasNoContent = !content || content.trim().length === 0
+    const hasNoAnswers = !motivationAnswers?.motivation_position || !motivationAnswers?.motivation_company
+    
+    if (hasNoContent && hasNoAnswers) {
+      // Show motivation dialog before first generation
+      setShowMotivationDialog(true)
+      return
+    }
+
+    await performRegeneration()
+  }
+
+  const performRegeneration = async () => {
+    if (!application.job_description) return
+
     setRegenerating(true)
     try {
       // First get match result
@@ -287,6 +458,8 @@ export function CoverLetterEditor({
           textLength: length,
           formality,
           extraction: application.extraction_data ? JSON.parse(application.extraction_data) : undefined,
+          motivation_position: motivationAnswers?.motivation_position || undefined,
+          motivation_company: motivationAnswers?.motivation_company || undefined,
         }),
       })
 
@@ -303,6 +476,51 @@ export function CoverLetterEditor({
       alert(error.message || 'Fehler beim Regenerieren des Anschreibens')
     } finally {
       setRegenerating(false)
+    }
+  }
+
+  const handleSaveMotivationAnswers = async (answers: {
+    motivation_position: string
+    motivation_company: string
+    company_website?: string
+    company_website_content?: string
+  }) => {
+    try {
+      const response = await fetch(`/api/applications/${application.id}/motivation-questions`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          motivation_position: answers.motivation_position,
+          motivation_company: answers.motivation_company,
+          company_website: answers.company_website || null,
+          company_website_content: answers.company_website_content || null,
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || 'Fehler beim Speichern der Antworten')
+      }
+
+      const data = await response.json()
+      
+      // Update local state with saved data
+      setMotivationAnswers({
+        motivation_position: data.motivation_position || null,
+        motivation_company: data.motivation_company || null,
+        company_website: data.company_website || null,
+        company_website_content: data.company_website_content || null,
+      })
+
+      // Reload to ensure we have the latest data from database
+      await loadMotivationAnswers()
+
+      // After saving, proceed with generation
+      await performRegeneration()
+    } catch (error: any) {
+      console.error('Error saving motivation answers:', error)
+      alert(error.message || 'Fehler beim Speichern der Antworten')
+      throw error
     }
   }
 
@@ -829,14 +1047,22 @@ export function CoverLetterEditor({
               
               <div className="flex-1 overflow-hidden grid grid-cols-3 gap-4">
             {/* Main Editor Area - 70% */}
-            <div className="col-span-2 flex flex-col space-y-3 min-h-0 overflow-hidden">
+            <div className="col-span-2 flex flex-col min-h-0 overflow-hidden">
               {/* Header */}
-              <div className="flex-shrink-0 pb-0">
+              <div className="flex-shrink-0 pb-2">
                 <h2 className="text-lg font-semibold">Anschreiben Editor</h2>
               </div>
-              {/* Toolbar */}
-              <div className="flex items-end gap-1.5 flex-shrink-0">
-                <div className="flex-1 grid grid-cols-4 gap-3">
+              {/* Tabs for Editor and Motivation */}
+              <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'editor' | 'motivation')} className="flex-1 flex flex-col min-h-0 overflow-hidden">
+                <TabsList className="grid w-full grid-cols-2 flex-shrink-0 mb-3">
+                  <TabsTrigger value="editor">Anschreiben</TabsTrigger>
+                  <TabsTrigger value="motivation">Motivation</TabsTrigger>
+                </TabsList>
+                
+                <TabsContent value="editor" className="flex-1 flex flex-col min-h-0 overflow-hidden mt-0 data-[state=inactive]:hidden">
+                  {/* Toolbar */}
+                  <div className="flex items-end gap-1.5 flex-shrink-0 mb-3">
+                    <div className="flex-1 grid grid-cols-4 gap-3">
                   <div className="space-y-2">
                     <Label htmlFor="formality">Formalität</Label>
                     <Select value={formality} onValueChange={setFormality}>
@@ -892,120 +1118,396 @@ export function CoverLetterEditor({
                       </SelectContent>
                     </Select>
                   </div>
-                </div>
-
-                <Button
-                  onClick={handleRegenerate}
-                  disabled={regenerating || !application.job_description}
-                  size="sm"
-                  className="h-9"
-                >
-                  {regenerating ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Generiere...
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="h-4 w-4 mr-2" />
-                      Generieren
-                    </>
-                  )}
-                </Button>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex items-center gap-1.5 flex-shrink-0">
-                <Button
-                  onClick={handleUndo}
-                  disabled={!canUndo}
-                  variant="outline"
-                  size="sm"
-                  title="Rückgängig"
-                  className="h-9"
-                >
-                  <Undo className="h-4 w-4" />
-                </Button>
-                <Button
-                  onClick={handleRedo}
-                  disabled={!canRedo}
-                  variant="outline"
-                  size="sm"
-                  title="Wiederholen"
-                  className="h-9"
-                >
-                  <Redo className="h-4 w-4" />
-                </Button>
-                <Button
-                  onClick={handleCopy}
-                  variant="outline"
-                  size="sm"
-                  className={`h-9 ${copySuccess ? "bg-green-100" : ""}`}
-                  title="Text kopieren"
-                >
-                  <Copy className="h-4 w-4 mr-2" />
-                  {copySuccess ? "Kopiert!" : "Kopieren"}
-                </Button>
-                <Button
-                  onClick={handleSave}
-                  disabled={saving || !hasUnsavedChanges}
-                  size="sm"
-                  className="ml-auto h-9"
-                >
-                  <Save className="h-4 w-4 mr-2" />
-                  {saving ? 'Speichere...' : 'Speichern'}
-                </Button>
-              </div>
-
-              {/* Editor */}
-              <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-                <div className="flex items-center gap-2 mb-1">
-                  <Label htmlFor="editor">Anschreiben</Label>
-                  <span className="text-sm text-muted-foreground">
-                    ({content.trim().split(/\s+/).filter(word => word.length > 0).length} Wörter, {content.length} Zeichen)
-                  </span>
-                </div>
-                <div className="relative flex-1 min-h-[300px] overflow-hidden">
-                  <Textarea
-                    ref={textareaRef}
-                    id="editor"
-                    value={content}
-                    onChange={(e) => handleContentChange(e.target.value)}
-                    className={`h-full min-h-[300px] font-mono text-sm resize-none overflow-auto ${showDiff ? 'opacity-0 pointer-events-none' : ''}`}
-                    placeholder="Ihr Anschreiben..."
-                    disabled={showDiff}
-                    readOnly={showDiff}
-                  />
-                  {/* Diff Overlay for pending changes from chat */}
-                  {showDiff && pendingCoverLetter && originalCoverLetter && textareaRef.current && (
-                    <DiffOverlay
-                      originalText={originalCoverLetter}
-                      modifiedText={pendingCoverLetter}
-                      onAccept={handleAcceptChanges}
-                      onReject={handleRejectChanges}
-                      onRevise={handleRevise}
-                      textareaRef={textareaRef}
-                    />
-                  )}
-                  {/* Diff Overlay for suggestions - shows pending suggestions */}
-                  {!showDiff && suggestions.filter(s => s.status === 'pending').length > 0 && (
-                    <div className="absolute inset-0 pointer-events-none p-3 font-mono text-sm whitespace-pre-wrap opacity-50 overflow-hidden">
-                      {renderContentWithHighlights()}
                     </div>
-                  )}
-                </div>
-              </div>
 
-              {/* Suggestions List */}
-              <div className="flex-shrink-0 max-h-[200px] overflow-y-auto border-t pt-2">
-                <SuggestionList
-                  suggestions={suggestions}
-                  onAccept={handleAcceptSuggestion}
-                  onReject={handleRejectSuggestion}
-                  onAcceptAll={handleAcceptAll}
-                  loading={saving}
-                />
-              </div>
+                    <Button
+                      onClick={handleRegenerate}
+                      disabled={regenerating || !application.job_description}
+                      size="sm"
+                      className="h-9"
+                    >
+                      {regenerating ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Generiere...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="h-4 w-4 mr-2" />
+                          Generieren
+                        </>
+                      )}
+                    </Button>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex items-center gap-1.5 flex-shrink-0 mb-3">
+                    <Button
+                      onClick={handleUndo}
+                      disabled={!canUndo}
+                      variant="outline"
+                      size="sm"
+                      title="Rückgängig"
+                      className="h-9"
+                    >
+                      <Undo className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      onClick={handleRedo}
+                      disabled={!canRedo}
+                      variant="outline"
+                      size="sm"
+                      title="Wiederholen"
+                      className="h-9"
+                    >
+                      <Redo className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      onClick={handleCopy}
+                      variant="outline"
+                      size="sm"
+                      className={`h-9 ${copySuccess ? "bg-green-100" : ""}`}
+                      title="Text kopieren"
+                    >
+                      <Copy className="h-4 w-4 mr-2" />
+                      {copySuccess ? "Kopiert!" : "Kopieren"}
+                    </Button>
+                    <Button
+                      onClick={handleSave}
+                      disabled={saving || !hasUnsavedChanges}
+                      size="sm"
+                      className="ml-auto h-9"
+                    >
+                      <Save className="h-4 w-4 mr-2" />
+                      {saving ? 'Speichere...' : 'Speichern'}
+                    </Button>
+                  </div>
+
+                  {/* Editor */}
+                  <div className="flex-1 flex flex-col min-h-0 overflow-hidden mb-3">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Label htmlFor="editor">Anschreiben</Label>
+                      <span className="text-sm text-muted-foreground">
+                        ({content.trim().split(/\s+/).filter(word => word.length > 0).length} Wörter, {content.length} Zeichen)
+                      </span>
+                    </div>
+                    <div className="relative flex-1 min-h-[300px] overflow-hidden">
+                      <Textarea
+                        ref={textareaRef}
+                        id="editor"
+                        value={content}
+                        onChange={(e) => handleContentChange(e.target.value)}
+                        className={`h-full min-h-[300px] font-mono text-sm resize-none overflow-auto ${showDiff ? 'opacity-0 pointer-events-none' : ''}`}
+                        placeholder="Ihr Anschreiben..."
+                        disabled={showDiff}
+                        readOnly={showDiff}
+                      />
+                      {/* Diff Overlay for pending changes from chat */}
+                      {showDiff && pendingCoverLetter && originalCoverLetter && textareaRef.current && (
+                        <DiffOverlay
+                          originalText={originalCoverLetter}
+                          modifiedText={pendingCoverLetter}
+                          onAccept={handleAcceptChanges}
+                          onReject={handleRejectChanges}
+                          onRevise={handleRevise}
+                          textareaRef={textareaRef}
+                        />
+                      )}
+                      {/* Diff Overlay for suggestions - shows pending suggestions */}
+                      {!showDiff && suggestions.filter(s => s.status === 'pending').length > 0 && (
+                        <div className="absolute inset-0 pointer-events-none p-3 font-mono text-sm whitespace-pre-wrap opacity-50 overflow-hidden">
+                          {renderContentWithHighlights()}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Suggestions List */}
+                  <div className="flex-shrink-0 max-h-[200px] overflow-y-auto border-t pt-2">
+                    <SuggestionList
+                      suggestions={suggestions}
+                      onAccept={handleAcceptSuggestion}
+                      onReject={handleRejectSuggestion}
+                      onAcceptAll={handleAcceptAll}
+                      loading={saving}
+                    />
+                  </div>
+                </TabsContent>
+                
+                <TabsContent value="motivation" className="flex-1 flex flex-col min-h-0 overflow-hidden mt-0 data-[state=inactive]:hidden">
+                  <div className="flex-1 flex flex-col min-h-0 overflow-y-auto space-y-4">
+                    <div>
+                      <h3 className="text-base font-semibold mb-2">Motivationsfragen</h3>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        Diese Antworten werden bei der Generierung des Anschreibens verwendet.
+                      </p>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label>Warum begeistert dich die ausgeschrieben Stelle?</Label>
+                      <div className="space-y-2">
+                        <Textarea
+                          value={motivationAnswers?.motivation_position || ''}
+                          onChange={(e) => {
+                            const newValue = e.target.value
+                            setMotivationAnswers(prev => ({
+                              ...prev,
+                              motivation_position: newValue,
+                              motivation_company: prev?.motivation_company || null,
+                              company_website: prev?.company_website || null,
+                              company_website_content: prev?.company_website_content || null,
+                            }))
+                            // Clear existing timeout
+                            if (savePositionTimeoutRef.current) {
+                              clearTimeout(savePositionTimeoutRef.current)
+                            }
+                            // Auto-save with debouncing
+                            savePositionTimeoutRef.current = setTimeout(async () => {
+                              try {
+                                const response = await fetch(`/api/applications/${application.id}/motivation-questions`, {
+                                  method: 'PATCH',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({
+                                    motivation_position: newValue,
+                                  }),
+                                })
+                                if (!response.ok) {
+                                  throw new Error('Fehler beim Speichern')
+                                }
+                                // Reload to ensure we have the latest data
+                                await loadMotivationAnswers()
+                              } catch (error) {
+                                console.error('Error saving motivation position:', error)
+                                alert('Fehler beim Speichern der Antwort. Bitte versuchen Sie es erneut.')
+                              }
+                            }, 1000) // 1 second debounce
+                          }}
+                          placeholder="Ihre Antwort..."
+                          className="min-h-[100px]"
+                          rows={4}
+                        />
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleGenerateMotivationSuggestion('position')}
+                          disabled={generatingPosition}
+                          className="w-full"
+                        >
+                          {generatingPosition ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              KI-Vorschlag wird generiert...
+                            </>
+                          ) : (
+                            <>
+                              <Sparkles className="mr-2 h-4 w-4" />
+                              KI-Vorschlag generieren
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label>Was begeistert dich an dem Unternehmen oder warum möchtest du speziell in dem Themenfeld arbeiten?</Label>
+                      <div className="space-y-2">
+                        <Textarea
+                          value={motivationAnswers?.motivation_company || ''}
+                          onChange={(e) => {
+                            const newValue = e.target.value
+                            setMotivationAnswers(prev => ({
+                              ...prev,
+                              motivation_position: prev?.motivation_position || null,
+                              motivation_company: newValue,
+                              company_website: prev?.company_website || null,
+                              company_website_content: prev?.company_website_content || null,
+                            }))
+                            // Clear existing timeout
+                            if (saveCompanyTimeoutRef.current) {
+                              clearTimeout(saveCompanyTimeoutRef.current)
+                            }
+                            // Auto-save with debouncing
+                            saveCompanyTimeoutRef.current = setTimeout(async () => {
+                              try {
+                                const response = await fetch(`/api/applications/${application.id}/motivation-questions`, {
+                                  method: 'PATCH',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({
+                                    motivation_company: newValue,
+                                  }),
+                                })
+                                if (!response.ok) {
+                                  throw new Error('Fehler beim Speichern')
+                                }
+                                // Reload to ensure we have the latest data
+                                await loadMotivationAnswers()
+                              } catch (error) {
+                                console.error('Error saving motivation company:', error)
+                                alert('Fehler beim Speichern der Antwort. Bitte versuchen Sie es erneut.')
+                              }
+                            }, 1000) // 1 second debounce
+                          }}
+                          placeholder="Ihre Antwort..."
+                          className="min-h-[100px]"
+                          rows={4}
+                        />
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleGenerateMotivationSuggestion('company')}
+                          disabled={generatingCompany}
+                          className="w-full"
+                        >
+                          {generatingCompany ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              KI-Vorschlag wird generiert...
+                            </>
+                          ) : (
+                            <>
+                              <Sparkles className="mr-2 h-4 w-4" />
+                              KI-Vorschlag generieren
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label>Unternehmenswebsite (optional)</Label>
+                      <div className="flex gap-2">
+                        <Input
+                          value={motivationAnswers?.company_website || ''}
+                          onChange={(e) => {
+                            const newValue = e.target.value
+                            setMotivationAnswers(prev => ({
+                              ...prev,
+                              motivation_position: prev?.motivation_position || null,
+                              motivation_company: prev?.motivation_company || null,
+                              company_website: newValue,
+                              company_website_content: prev?.company_website_content || null,
+                            }))
+                            // Clear existing timeout
+                            if (saveWebsiteTimeoutRef.current) {
+                              clearTimeout(saveWebsiteTimeoutRef.current)
+                            }
+                            // Auto-save with debouncing
+                            saveWebsiteTimeoutRef.current = setTimeout(async () => {
+                              try {
+                                const response = await fetch(`/api/applications/${application.id}/motivation-questions`, {
+                                  method: 'PATCH',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({
+                                    company_website: newValue,
+                                  }),
+                                })
+                                if (!response.ok) {
+                                  throw new Error('Fehler beim Speichern')
+                                }
+                                // If URL is valid, try to scrape content
+                                if (newValue.trim() && newValue.trim().startsWith('http')) {
+                                  try {
+                                    const scrapeResponse = await fetch('/api/scrape-website', {
+                                      method: 'POST',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({ url: newValue.trim() }),
+                                    })
+                                    if (scrapeResponse.ok) {
+                                      const scrapeData = await scrapeResponse.json()
+                                      if (scrapeData.content) {
+                                        setMotivationAnswers(prev => ({
+                                          ...prev,
+                                          company_website_content: scrapeData.content,
+                                        }))
+                                        // Save scraped content
+                                        await fetch(`/api/applications/${application.id}/motivation-questions`, {
+                                          method: 'PATCH',
+                                          headers: { 'Content-Type': 'application/json' },
+                                          body: JSON.stringify({
+                                            company_website_content: scrapeData.content,
+                                          }),
+                                        })
+                                      }
+                                    }
+                                  } catch (scrapeError) {
+                                    console.error('Error scraping website:', scrapeError)
+                                  }
+                                }
+                                // Reload to ensure we have the latest data
+                                await loadMotivationAnswers()
+                              } catch (error) {
+                                console.error('Error saving company website:', error)
+                                alert('Fehler beim Speichern der Website-URL. Bitte versuchen Sie es erneut.')
+                              }
+                            }, 1000) // 1 second debounce
+                          }}
+                          placeholder="https://www.unternehmen.de"
+                          className="flex-1"
+                        />
+                        {motivationAnswers?.company_website && (
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={() => window.open(motivationAnswers.company_website!, '_blank')}
+                            title="Website öffnen"
+                          >
+                            <ExternalLink className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                    
+                    {/* Extracted Website Content */}
+                    {motivationAnswers?.company_website_content && (
+                      <div className="space-y-2">
+                        <Label>Extrahierte Informationen aus Unternehmenswebsite</Label>
+                        <Textarea
+                          value={motivationAnswers.company_website_content}
+                          onChange={(e) => {
+                            const newValue = e.target.value
+                            setMotivationAnswers(prev => ({
+                              ...prev,
+                              motivation_position: prev?.motivation_position || null,
+                              motivation_company: prev?.motivation_company || null,
+                              company_website: prev?.company_website || null,
+                              company_website_content: newValue,
+                            }))
+                            // Clear existing timeout
+                            if (saveWebsiteContentTimeoutRef.current) {
+                              clearTimeout(saveWebsiteContentTimeoutRef.current)
+                            }
+                            // Auto-save with debouncing
+                            saveWebsiteContentTimeoutRef.current = setTimeout(async () => {
+                              try {
+                                const response = await fetch(`/api/applications/${application.id}/motivation-questions`, {
+                                  method: 'PATCH',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({
+                                    company_website_content: newValue,
+                                  }),
+                                })
+                                if (!response.ok) {
+                                  throw new Error('Fehler beim Speichern')
+                                }
+                                await loadMotivationAnswers()
+                              } catch (error) {
+                                console.error('Error saving website content:', error)
+                                alert('Fehler beim Speichern der Website-Inhalte. Bitte versuchen Sie es erneut.')
+                              }
+                            }, 1000) // 1 second debounce
+                          }}
+                          placeholder="Extrahierte Website-Inhalte..."
+                          className="min-h-[150px] font-mono text-sm"
+                          rows={6}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Diese Informationen wurden automatisch von der Website extrahiert und können bearbeitet werden.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </TabsContent>
+              </Tabs>
             </div>
 
             {/* Sidebar - Chat and Version History - 30% */}
@@ -1106,6 +1608,22 @@ export function CoverLetterEditor({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Motivation Questions Dialog */}
+      <MotivationQuestionsDialog
+        isOpen={showMotivationDialog}
+        onClose={() => {
+          setShowMotivationDialog(false)
+          // Reload answers after dialog closes to ensure we have latest data
+          loadMotivationAnswers()
+        }}
+        onSave={handleSaveMotivationAnswers}
+        applicationId={application.id}
+        company={application.company}
+        position={application.position}
+        jobDescription={application.job_description}
+        existingAnswers={motivationAnswers || undefined}
+      />
 
       {/* Version Description Dialog */}
       <Dialog open={showDescriptionDialog} onOpenChange={handleCancelSave}>
