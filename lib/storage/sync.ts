@@ -6,8 +6,17 @@ import { getDatabasePath } from '@/lib/database/init';
 
 // Cloud Storage Configuration
 const GCS_BUCKET_NAME = process.env.GCS_BUCKET_NAME || '';
-const DB_FILE_NAME = 'anschreiben.db';
-const DB_BACKUP_FILE_NAME = 'anschreiben_backup.db';
+// Use database filename from DATABASE_PATH if set, otherwise use default
+const getDbFileName = (): string => {
+  if (process.env.DATABASE_PATH) {
+    const dbPath = process.env.DATABASE_PATH;
+    // Extract filename from path (e.g., /anschreiben-app/database.sqlite -> database.sqlite)
+    return dbPath.split('/').pop() || 'anschreiben.db';
+  }
+  return 'anschreiben.db';
+};
+const DB_FILE_NAME = getDbFileName();
+const DB_BACKUP_FILE_NAME = DB_FILE_NAME.replace('.db', '_backup.db').replace('.sqlite', '_backup.sqlite');
 
 let storageInstance: Storage | null = null;
 let bucketInstance: any = null;

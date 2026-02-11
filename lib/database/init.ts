@@ -2,7 +2,10 @@ import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
 
-const dbPath = path.join(process.cwd(), 'data', 'anschreiben.db');
+// Use DATABASE_PATH environment variable if set, otherwise use default path
+const dbPath = process.env.DATABASE_PATH 
+  ? process.env.DATABASE_PATH 
+  : path.join(process.cwd(), 'data', 'anschreiben.db');
 
 // Export function to get database path (used by sync.ts)
 export function getDatabasePath(): string {
@@ -295,7 +298,7 @@ export function initDatabase(): Database.Database {
   
   // Initialize default settings
   const defaultSettings = [
-    { key: 'ai_model', value: 'gemini-1.5-pro', category: 'ai', description: 'KI-Modell für alle Operationen' },
+    { key: 'ai_model', value: 'gemini-2.5-flash', category: 'ai', description: 'KI-Modell für alle Operationen' },
     { key: 'temperature_extract', value: '0.3', category: 'ai', description: 'Temperature für Extraktion' },
     { key: 'temperature_generate', value: '0.7', category: 'ai', description: 'Temperature für Generierung' },
     { key: 'temperature_match', value: '0.5', category: 'ai', description: 'Temperature für Matching' },

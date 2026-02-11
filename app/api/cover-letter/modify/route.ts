@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
 
     // Load settings
     const settings = getSettings();
-    const preferredModel = settings.ai_model || 'gemini-1.5-pro';
+    const preferredModel = settings.ai_model || 'gemini-2.5-flash';
     const temperature = parseFloat(settings.temperature_generate || '0.7');
 
     // Get API key

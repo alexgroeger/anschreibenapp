@@ -1416,7 +1416,9 @@ export function CoverLetterEditor({
                                       const scrapeData = await scrapeResponse.json()
                                       if (scrapeData.content) {
                                         setMotivationAnswers(prev => ({
-                                          ...prev,
+                                          motivation_position: prev?.motivation_position ?? null,
+                                          motivation_company: prev?.motivation_company ?? null,
+                                          company_website: prev?.company_website ?? null,
                                           company_website_content: scrapeData.content,
                                         }))
                                         // Save scraped content

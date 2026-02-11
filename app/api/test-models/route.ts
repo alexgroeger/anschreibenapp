@@ -4,12 +4,12 @@ import { generateText } from 'ai';
 
 export async function GET() {
   const modelsToTest = [
-    'gemini-1.0-pro-001',
-    'gemini-1.0-pro-002',
-    'gemini-1.5-flash',
-    'gemini-1.5-pro',
-    'gemini-pro',
-    'gemini-2.0-flash-exp',
+    'gemini-2.5-flash',
+    'gemini-2.5-flash-lite',
+    'gemini-2.5-pro',
+    'gemini-3-flash-preview',
+    'gemini-3-pro-preview',
+    'gemini-2.0-flash',
   ];
 
   const results: Array<{ model: string; success: boolean; error?: string }> = [];

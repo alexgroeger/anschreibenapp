@@ -15,7 +15,7 @@ import { getSettings } from '@/lib/database/settings';
 export async function summarizeWebsiteContentWithAI(rawContent: string): Promise<string | null> {
   try {
     const settings = getSettings();
-    const preferredModel = settings.ai_model || 'gemini-1.5-pro';
+    const preferredModel = settings.ai_model || 'gemini-2.5-flash';
     const temperature = parseFloat(settings.temperature_generate || '0.7');
     
     const prompt = `Du bist ein Experte für die Analyse von Unternehmenswebsites. Analysiere den folgenden Text, der von einer Unternehmenswebsite extrahiert wurde, und erstelle eine präzise, strukturierte Zusammenfassung.

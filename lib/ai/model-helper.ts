@@ -4,15 +4,16 @@ import { getGoogleApiKey } from './api-key';
 
 /**
  * Versucht verschiedene Gemini-Modellnamen, bis eines funktioniert
- * Die Modellnamen müssen mit der verwendeten API-Version kompatibel sein
+ * Aktualisiert Feb 2026: Alte Modelle (gemini-pro, gemini-1.x) sind eingestellt
+ * Siehe: https://ai.google.dev/gemini-api/docs/models
  */
 const FALLBACK_MODELS = [
-  'gemini-2.0-flash-exp',  // Experimentelles Modell (funktioniert, aber möglicherweise Quota-Limit)
-  'gemini-1.0-pro-001',   // Stabile Version
-  'gemini-1.0-pro-002',   // Aktualisierte stabile Version
-  'gemini-1.5-flash',     // Schnelles Modell
-  'gemini-1.5-pro',       // Pro-Modell
-  'gemini-pro',           // Legacy-Name
+  'gemini-2.5-flash',     // Stable, beste Preis-Leistung
+  'gemini-2.5-flash-lite',// Schnellstes Modell
+  'gemini-2.5-pro',       // Pro-Modell für komplexe Aufgaben
+  'gemini-3-flash-preview', // Neueste Flash-Version
+  'gemini-3-pro-preview',   // Neueste Pro-Version
+  'gemini-2.0-flash',     // Fallback (deprecated März 2026)
 ];
 
 /**
